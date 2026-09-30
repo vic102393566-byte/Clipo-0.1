@@ -1,5 +1,4 @@
 import express, { Request, Response } from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -271,6 +270,14 @@ const getBaseAppUrl = () => {
     'https://ais-dev-lfcxezhilf74k3anceyuue-460308902554.us-east1.run.app'
   );
 };
+
+// ==========================================
+// ROTA GET /api/health
+// Verificação de status e integridade do backend (Vercel & Local)
+// ==========================================
+app.get('/api/health', (req: Request, res: Response) => {
+  return res.status(200).json({ ok: true });
+});
 
 // ==========================================
 // 1. SOCIAL ACCOUNTS OAUTH ARCHITECTURE
@@ -1983,12 +1990,13 @@ app.all('/api/*', (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 4. VITE MIDDLEWARE SETUP
+// 4. VITE MIDDLEWARE SETUP & SERVER STARTUP
 // ==========================================
 async function startServer() {
   const isDev = process.env.NODE_ENV !== 'production';
 
   if (isDev) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: process.env.DISABLE_HMR !== 'true' },
       appType: 'spa',
@@ -2006,4 +2014,11 @@ async function startServer() {
   });
 }
 
-startServer();
+// In local environment or traditional Node hosting, start the HTTP server
+// In Vercel serverless environment, Vercel imports and handles requests directly
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
+export { app };
