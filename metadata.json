@@ -1,0 +1,6 @@
+{
+  "name": "Clipo - Dashboard de Vídeos e Publicações",
+  "description": "Plataforma moderna para gerenciamento, agendamento e publicação inteligente de vídeos curtos em múltiplas redes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
