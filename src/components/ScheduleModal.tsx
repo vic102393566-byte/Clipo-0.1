@@ -305,11 +305,6 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-4 space-y-4">
           {/* Video Selection */}
           <div>
-            <label className="text-xs font-semibold text-[#FDBA74] flex items-center gap-1.5 mb-1.5">
-              <Film className="h-3.5 w-3.5 text-[#F97316]" />
-              <span>Vídeo selecionado</span>
-            </label>
-
             {video ? (
               <div className="flex items-center gap-3 rounded-xl border border-[#27272A] bg-[#0A0A0A] p-3">
                 <img
@@ -339,104 +334,38 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             )}
           </div>
 
-          {/* AI Generation Quick Action Bar (REQUISITO: GERAR COM IA) */}
-          <div className="rounded-xl border border-[#F97316]/30 bg-[#F97316]/10 p-3.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-[#F97316] shrink-0" />
-              <div>
-                <span className="text-xs font-semibold text-white block">
-                  {aiGenerated ? 'Textos otimizados com Gemini' : 'Gerar informações com IA'}
-                </span>
-                <span className="text-[11px] text-[#FDBA74]">
-                  {aiGenerated ? 'Título, descrição, hashtags e CTA preenchidos' : 'Crie título, legenda, hashtags e CTA automaticamente'}
-                </span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGenerateWithAI}
-              disabled={isGeneratingAI}
-              className="flex items-center gap-1.5 rounded-lg bg-[#F97316] px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-[#EA580C] transition disabled:opacity-50 cursor-pointer shrink-0"
-            >
-              {isGeneratingAI ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>Gerando...</span>
-                </>
-              ) : aiGenerated ? (
-                <>
-                  <RotateCcw className="h-3 w-3" />
-                  <span>Gerar novamente</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span>Gerar com IA</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* AI Error Alert */}
-          {aiError && (
-            <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
-              <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
-              <span>{aiError}</span>
-            </div>
-          )}
-
           {/* 1. TÍTULO (REQUISITO 1) */}
           <div>
-            <label className="text-xs font-semibold text-[#FDBA74] flex items-center justify-between mb-1.5">
-              <span className="flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 text-[#F97316]" />
-                <span>Título da publicação</span>
-              </span>
-              <span className="text-[11px] font-mono text-[#FDBA74]">
-                {title.length} caracteres
-              </span>
-            </label>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Digite ou gere o título do vídeo..."
+              placeholder="Título da publicação..."
               className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] px-3.5 py-2 text-xs text-white focus:border-[#F97316] focus:outline-none"
             />
           </div>
 
           {/* 2. DESCRIÇÃO / LEGENDA (REQUISITO 2) */}
           <div>
-            <label className="text-xs font-semibold text-[#FDBA74] flex items-center justify-between mb-1.5">
-              <span className="flex items-center gap-1.5">
-                <MessageSquare className="h-3.5 w-3.5 text-[#F97316]" />
-                <span>Descrição do conteúdo</span>
-              </span>
-              <span className="text-[11px] font-mono text-[#FDBA74]">
-                {caption.length} caracteres
-              </span>
+            <label className="text-xs font-semibold text-[#FDBA74] flex items-center gap-1.5 mb-1.5">
+              <MessageSquare className="h-3.5 w-3.5 text-[#F97316]" />
+              <span>Descrição do conteúdo</span>
             </label>
             <textarea
               rows={3}
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
-              placeholder="Escreva a legenda ou gere com a IA..."
+              placeholder="Escreva a legenda..."
               className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] p-3 text-xs text-white placeholder-[#71717A] focus:border-[#F97316] focus:outline-none resize-none leading-relaxed"
             />
           </div>
 
           {/* 3. HASHTAGS RELEVANTES (REQUISITO 3) */}
           <div>
-            <label className="text-xs font-semibold text-[#FDBA74] flex items-center justify-between mb-1.5">
-              <span className="flex items-center gap-1.5">
-                <Tag className="h-3.5 w-3.5 text-[#F97316]" />
-                <span>Hashtags ({hashtags.length})</span>
-              </span>
-              <span className="text-[11px] text-[#FDBA74]">
-                Editável: adicione ou exclua tags
-              </span>
+            <label className="text-xs font-semibold text-[#FDBA74] flex items-center gap-1.5 mb-1.5">
+              <Tag className="h-3.5 w-3.5 text-[#F97316]" />
+              <span>Hashtags ({hashtags.length})</span>
             </label>
 
             <div className="flex flex-wrap gap-1.5 p-2 rounded-xl border border-[#27272A] bg-[#0A0A0A] min-h-[40px] items-center">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Film, Upload, Search, Play, Eye, Trash2, Scissors, Calendar, Sparkles, Edit3 } from 'lucide-react';
+import { Film, Upload, Search, Play, Eye, Trash2, Calendar } from 'lucide-react';
 import { VideoItem } from '../../types';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 
@@ -56,15 +56,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
       {/* Header Bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-white">Meus vídeos</h2>
-            <span className="font-mono text-xs tabular-nums text-slate-400">
-              ({videos.length} disponíveis)
-            </span>
-          </div>
-          <p className="text-xs text-slate-400">
-            Biblioteca de vídeos enviados, cortes prontos e mídias para publicação
-          </p>
+          <h2 className="text-lg font-bold text-white">Meus vídeos</h2>
         </div>
 
         <div className="flex items-center gap-3">
@@ -192,57 +184,16 @@ export const VideosView: React.FC<VideosViewProps> = ({
                   <span className="text-emerald-400">Pronto</span>
                 </div>
 
-                {/* Actions footer: Visualizar, Dividir, Agendar & Excluir */}
+                {/* Actions footer: Visualizar, Agendar & Excluir */}
                 <div className="mt-4 flex items-center justify-between border-t border-[#27272A] pt-3 text-xs">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => onPreviewVideo(video)}
-                      className="flex items-center gap-1.5 font-medium text-white hover:text-[#A78BFA] transition"
+                      className="flex items-center gap-1.5 font-medium text-white hover:text-[#F97316] transition cursor-pointer"
                     >
                       <Eye className="h-3.5 w-3.5 text-[#F97316]" />
                       <span>Ver</span>
                     </button>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onEditVideo) onEditVideo(video);
-                        else onPreviewVideo(video);
-                      }}
-                      className="flex items-center gap-1 font-medium text-[#F97316] hover:text-[#EA580C] transition cursor-pointer"
-                      title="Editar título, descrição, hashtags e cortes deste vídeo"
-                    >
-                      <Edit3 className="h-3 w-3" />
-                      <span>Editar</span>
-                    </button>
-
-                    {onGenerateAIMetadata && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onGenerateAIMetadata(video);
-                        }}
-                        className="flex items-center gap-1 font-medium text-[#F97316] hover:text-[#EA580C] transition cursor-pointer"
-                        title="Gerar título, descrição, hashtags e CTA com IA"
-                      >
-                        <Sparkles className="h-3 w-3" />
-                        <span>Gerar com IA</span>
-                      </button>
-                    )}
-
-                    {onSplitVideo && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSplitVideo(video);
-                        }}
-                        className="flex items-center gap-1 font-medium text-[#F97316] hover:text-[#A78BFA] transition"
-                        title="Dividir este vídeo em partes menores"
-                      >
-                        <Scissors className="h-3 w-3" />
-                        <span>Dividir</span>
-                      </button>
-                    )}
 
                     {onScheduleVideo && (
                       <button
@@ -250,7 +201,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
                           e.stopPropagation();
                           onScheduleVideo(video);
                         }}
-                        className="flex items-center gap-1 font-medium text-emerald-400 hover:text-emerald-300 transition"
+                        className="flex items-center gap-1 font-medium text-emerald-400 hover:text-emerald-300 transition cursor-pointer"
                         title="Agendar publicação deste vídeo"
                       >
                         <Calendar className="h-3 w-3" />

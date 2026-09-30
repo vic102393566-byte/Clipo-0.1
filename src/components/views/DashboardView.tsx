@@ -108,13 +108,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <h2 className="text-sm sm:text-base font-bold text-white group-hover:text-[#F97316] transition">
                 Upload de vídeo
               </h2>
-              <p className="text-xs text-[#FDBA74] mt-0.5 line-clamp-1">
-                Cortar, legendar & publicar
-              </p>
-              <div className="mt-2.5 flex items-center gap-1 text-[11px] font-semibold text-[#F97316] group-hover:text-[#EA580C]">
-                <span>Enviar novo arquivo</span>
-                <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition" />
-              </div>
             </div>
           </div>
 
@@ -170,15 +163,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <h2 className="text-sm sm:text-base font-bold text-white group-hover:text-[#F97316] transition">
                 Armazenamento
               </h2>
-              <div className="mt-0.5 flex items-baseline gap-1 font-mono text-xs font-bold text-white tabular-nums">
-                <span>{displayUsed.replace('.', ',')}</span>
-                <span className="text-[#FDBA74]/60 font-normal">/</span>
-                <span className="text-[#FDBA74]">{displayLimit.replace('.', ',')}</span>
-              </div>
-              <div className="mt-2.5 flex items-center gap-1 text-[11px] font-semibold text-[#FDBA74] group-hover:text-white">
-                <span>{availableGb.replace('.', ',')}</span>
-                <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition" />
-              </div>
             </div>
           </div>
 
@@ -201,19 +185,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <h2 className="text-sm sm:text-base font-bold text-white group-hover:text-[#F97316] transition">
                 Calendário
               </h2>
-              <p className="text-xs text-white font-medium mt-0.5 line-clamp-1">
-                {scheduledPubs.length > 0
-                  ? `${scheduledPubs.length} publicações programadas`
-                  : 'Nenhuma data agendada'}
-              </p>
-              <div className="mt-2.5 flex items-center gap-1 text-[11px] font-semibold text-[#FDBA74] group-hover:text-white">
-                <span className="truncate">
-                  {nextPub
-                    ? `Próxima: ${nextPub.scheduledDateLabel}, ${nextPub.scheduledTime}`
-                    : 'Ver programação'}
-                </span>
-                <ArrowRight className="h-3 w-3 shrink-0 group-hover:translate-x-0.5 transition" />
-              </div>
             </div>
           </div>
 
@@ -236,13 +207,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <h2 className="text-sm sm:text-base font-bold text-white group-hover:text-[#F97316] transition">
                 Mudar plano
               </h2>
-              <p className="text-xs text-[#FDBA74] mt-0.5 line-clamp-1">
-                Mais canais, cortes & espaço
-              </p>
-              <div className="mt-2.5 flex items-center gap-1 text-[11px] font-semibold text-[#FDBA74] group-hover:text-white">
-                <span>Ver planos disponíveis</span>
-                <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition" />
-              </div>
             </div>
           </div>
         </div>
@@ -285,9 +249,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <CheckCircle2 className="h-4 w-4" />
             </div>
             <div>
-              <span className="text-[11px] font-medium text-[#FDBA74] block">
-                Vídeos já publicados
-              </span>
               <span className="font-mono text-sm sm:text-base font-bold text-white tabular-nums">
                 {publishedPubs.length} vídeos entregues
               </span>
@@ -300,9 +261,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Clock className="h-4 w-4" />
             </div>
             <div>
-              <span className="text-[11px] font-medium text-[#FDBA74] block">
-                Vídeos agendados
-              </span>
               <span className="font-mono text-sm sm:text-base font-bold text-white tabular-nums">
                 {scheduledPubs.length} na fila automática
               </span>
@@ -315,9 +273,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Calendar className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <span className="text-[11px] font-medium text-[#FDBA74] block">
-                Próximo disparo agendado
-              </span>
               <span className="font-mono text-xs font-bold text-white truncate block">
                 {nextPub
                   ? `${nextPub.scheduledDateLabel} às ${nextPub.scheduledTime}`
@@ -329,12 +284,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Mini Upcoming Timeline Preview (Next 3 items) with horizontal scroll on mobile */}
         <div className="pt-3.5">
-          <div className="flex items-center justify-between mb-2.5">
+          <div className="mb-2.5">
             <span className="text-xs font-semibold text-white">
               Próximos vídeos programados
-            </span>
-            <span className="text-[11px] text-[#FDBA74]">
-              Clique no item para pré-visualizar
             </span>
           </div>
 
@@ -406,11 +358,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {(() => {
             const connectedOnly = connectedAccounts.filter((account) => account.connected);
             if (connectedOnly.length === 0) {
-              return (
-                <span className="text-[#A1A1AA] text-xs">
-                  Nenhum canal conectado. Conecte YouTube, Instagram ou TikTok na aba "Contas".
-                </span>
-              );
+              return null;
             }
             return connectedOnly.map((account) => (
               <div

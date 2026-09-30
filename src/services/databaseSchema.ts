@@ -168,6 +168,57 @@ CREATE POLICY "Users can only delete own schedules" ON scheduled_publications
 -- Usuário só tem acesso às suas próprias configurações:
 CREATE POLICY "Users can only access own settings" ON user_settings
   FOR ALL USING (auth.uid()::text = user_id);
+
+-- -------------------------------------------------------------
+-- 7. SUPABASE STORAGE (BUCKET: clipo-videos) - POLÍTICAS RLS
+-- -------------------------------------------------------------
+-- Os binários de vídeo são salvos EXCLUSIVAMENTE no Supabase Storage.
+-- O PostgreSQL armazena apenas os metadados na tabela 'videos'.
+-- Estrutura de pastas: {ID_DO_USUARIO}/videos/{nome-do-arquivo}
+-- O bucket é PRIVADO (public = false), exigindo URLs assinadas.
+
+-- Criação do Bucket Privado 'clipo-videos'
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'clipo-videos',
+  'clipo-videos',
+  false, -- BUCKET PRIVADO (Signed URLs)
+  10737418240, -- 10 GB por arquivo (compatível com Clipo Pro)
+  ARRAY['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska']
+)
+ON CONFLICT (id) DO UPDATE SET public = false;
+
+-- Política 1: Usuário autenticado só pode fazer upload dentro de sua própria pasta
+CREATE POLICY "Permitir upload no bucket clipo-videos apenas na pasta do usuario"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'clipo-videos' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Política 2: Usuário autenticado só pode ler/baixar vídeos de sua própria pasta
+CREATE POLICY "Permitir leitura no bucket clipo-videos apenas da pasta do usuario"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'clipo-videos' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Política 3: Usuário autenticado só pode atualizar/substituir vídeos de sua própria pasta
+CREATE POLICY "Permitir atualizacao no bucket clipo-videos apenas da pasta do usuario"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'clipo-videos' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Política 4: Usuário autenticado só pode deletar vídeos de sua própria pasta
+CREATE POLICY "Permitir exclusao no bucket clipo-videos apenas da pasta do usuario"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'clipo-videos' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
 `;
 
 /**

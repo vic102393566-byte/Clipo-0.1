@@ -1,5 +1,5 @@
 import React from 'react';
-import { MoreHorizontal, Search, Bell, Upload, Settings } from 'lucide-react';
+import { MoreHorizontal, Bell, Upload, Settings } from 'lucide-react';
 import { TabType } from '../types';
 
 interface TopHeaderProps {
@@ -7,8 +7,8 @@ interface TopHeaderProps {
   isOpenSidebar: boolean;
   onToggleSidebar: () => void;
   onOpenUpload: () => void;
-  searchQuery: string;
-  setSearchQuery: (q: string) => void;
+  searchQuery?: string;
+  setSearchQuery?: (q: string) => void;
   onNavigateTab?: (tab: TabType) => void;
 }
 
@@ -76,30 +76,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <MoreHorizontal className="h-5 w-5" />
         </button>
 
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2 text-xs text-[#FDBA74]">
-            <span>Clipo Studio</span>
-            <span aria-hidden="true">/</span>
-            <span className="text-white capitalize">{currentTabInfo.title}</span>
-          </div>
-          <h1 className="text-base font-semibold tracking-tight text-white sm:text-lg">
-            {currentTabInfo.title}
-          </h1>
-        </div>
-      </div>
-
-      {/* Zone 2: Search input */}
-      <div className="hidden md:flex items-center flex-1 max-w-md mx-6">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#FDBA74]" />
-          <input
-            type="text"
-            placeholder="Buscar vídeos, tags, agendamentos..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl border border-[#27272A] bg-[#151515] pl-9 pr-4 py-2 text-xs text-white placeholder-[#71717A] transition focus:border-[#F97316] focus:bg-[#1A1A1A] focus:outline-none"
-          />
-        </div>
+        <h1 className="text-base font-semibold tracking-tight text-white sm:text-lg">
+          {currentTabInfo.title}
+        </h1>
       </div>
 
       {/* Zone 3: Actions (Notifications + Settings + Enviar vídeo CTA) */}

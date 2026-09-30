@@ -30,9 +30,6 @@ export const StorageView: React.FC<StorageViewProps> = ({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-bold text-white">Armazenamento em nuvem</h2>
-          <p className="text-xs text-[#FDBA74]">
-            Acompanhe o consumo de mídia e libere espaço inteligente
-          </p>
         </div>
 
         <button
@@ -78,31 +75,19 @@ export const StorageView: React.FC<StorageViewProps> = ({
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-[#F97316]" />
-              <div>
-                <p className="text-white font-medium">Vídeos brutos</p>
-                <p className="font-mono text-[11px] text-[#FDBA74] tabular-nums">8.4 GB (56.7%)</p>
-              </div>
+              <p className="text-white font-medium">Vídeos brutos</p>
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-[#9333EA]" />
-              <div>
-                <p className="text-white font-medium">Cortes 9:16</p>
-                <p className="font-mono text-[11px] text-[#FDBA74] tabular-nums">4.2 GB (28.4%)</p>
-              </div>
+              <p className="text-white font-medium">Cortes 9:16</p>
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-[#3B82F6]" />
-              <div>
-                <p className="text-white font-medium">Áudio & Legendas</p>
-                <p className="font-mono text-[11px] text-[#FDBA74] tabular-nums">1.2 GB (8.1%)</p>
-              </div>
+              <p className="text-white font-medium">Áudio & Legendas</p>
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-              <div>
-                <p className="text-white font-medium">Miniaturas</p>
-                <p className="font-mono text-[11px] text-[#FDBA74] tabular-nums">1.0 GB (6.8%)</p>
-              </div>
+              <p className="text-white font-medium">Miniaturas</p>
             </div>
           </div>
         </div>
@@ -112,9 +97,6 @@ export const StorageView: React.FC<StorageViewProps> = ({
       <div className="rounded-2xl border border-[#27272A] bg-[#151515] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-semibold text-white">Limpeza inteligente recomendada</h3>
-          <p className="text-xs text-[#FDBA74] mt-0.5">
-            Você tem 22 arquivos temporários de renderizações antigas já publicadas que podem ser arquivados.
-          </p>
         </div>
         <button
           onClick={() => alert('Limpeza de cache realizada! 2.4 GB liberados.')}

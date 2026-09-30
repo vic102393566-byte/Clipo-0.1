@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   X,
   UploadCloud,
@@ -10,6 +10,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { ScheduledPublication, SocialPlatform } from '../types';
+import { formatFileSize, extractVideoMetadata } from '../utils/videoUtils';
 
 interface UploadVideoModalProps {
   isOpen: boolean;
@@ -34,6 +35,7 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
   const [autoCaptions, setAutoCaptions] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [simulatedFileName, setSimulatedFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -50,7 +52,25 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
   const [selectedDuration, setSelectedDuration] = useState('1:00');
   const [selectedFileSize, setSelectedFileSize] = useState('15.4 MB');
 
+  const processSelectedFile = async (file: File) => {
+    setSimulatedFileName(file.name);
+    setSelectedFileSize(formatFileSize(file.size));
+    try {
+      const meta = await extractVideoMetadata(file);
+      if (meta.duration) setSelectedDuration(meta.duration);
+    } catch {}
+    if (!title) {
+      const cleanName = file.name.replace(/\.[^/.]+$/, '');
+      setTitle(cleanName);
+      setDescription('Dicas essenciais gravadas para engajamento nos primeiros 3 segundos.');
+    }
+  };
+
   const handleSimulateFileSelect = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+      return;
+    }
     const names = [
       'corte_podcast_ep42_final_9x16.mp4',
       'hack_produtividade_reels_v2.mp4',
@@ -119,6 +139,16 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           {/* Upload Drop Zone */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) processSelectedFile(file);
+            }}
+          />
           <div
             onDragOver={(e) => {
               e.preventDefault();
@@ -128,7 +158,12 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
             onDrop={(e) => {
               e.preventDefault();
               setIsDragging(false);
-              handleSimulateFileSelect();
+              const dropped = e.dataTransfer.files?.[0];
+              if (dropped) {
+                processSelectedFile(dropped);
+              } else {
+                handleSimulateFileSelect();
+              }
             }}
             onClick={handleSimulateFileSelect}
             className={`group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition ${

@@ -1,5 +1,22 @@
 import { VideoItem, PlanTier, PlanConfig, SubscriptionDetails, SubscriptionStatus, ScheduledPublication, SocialAccount } from '../types';
 import { authService, DEFAULT_DEMO_USER } from './authService';
+import {
+  isSupabaseConfigured,
+  uploadVideoToSupabaseStorage,
+  createSignedVideoUrl,
+  deleteVideoFromSupabaseStorage,
+  SUPABASE_VIDEOS_BUCKET,
+  buildUserVideoStoragePath
+} from './supabaseClient';
+
+export {
+  isSupabaseConfigured,
+  uploadVideoToSupabaseStorage,
+  createSignedVideoUrl,
+  deleteVideoFromSupabaseStorage,
+  SUPABASE_VIDEOS_BUCKET,
+  buildUserVideoStoragePath
+};
 
 /**
  * Storage provider interface.
@@ -8,9 +25,9 @@ import { authService, DEFAULT_DEMO_USER } from './authService';
  */
 export interface StorageProvider {
   name: string;
-  saveVideoBinary(id: string, file: File | Blob): Promise<string>;
-  getVideoUrl(id: string): Promise<string | undefined>;
-  deleteVideoBinary(id: string): Promise<void>;
+  saveVideoBinary(id: string, file: File | Blob, options?: { userId?: string; fileName?: string; onProgress?: (p: number) => void }): Promise<string>;
+  getVideoUrl(id: string, storagePath?: string): Promise<string | undefined>;
+  deleteVideoBinary(id: string, storagePath?: string): Promise<void>;
   estimateTotalSize(): Promise<number>;
 }
 
@@ -78,7 +95,7 @@ class IndexedDBStorageProvider implements StorageProvider {
     });
   }
 
-  async deleteVideoBinary(id: string): Promise<void> {
+  async deleteVideoBinary(id: string, storagePath?: string): Promise<void> {
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(this.storeName, 'readwrite');
@@ -102,8 +119,56 @@ class IndexedDBStorageProvider implements StorageProvider {
   }
 }
 
-// Active storage provider (swappable in the future)
-export const currentStorageProvider: StorageProvider = new IndexedDBStorageProvider();
+/**
+ * Supabase Storage Provider:
+ * Salva arquivos no bucket privado 'clipo-videos' sob a pasta do usuário:
+ * {ID_DO_USUARIO}/videos/{nome-do-arquivo}
+ * Utiliza URLs assinadas temporárias para reprodução segura.
+ */
+export class SupabaseStorageProvider implements StorageProvider {
+  name = 'Supabase Storage (clipo-videos)';
+  private fallbackProvider = new IndexedDBStorageProvider();
+
+  async saveVideoBinary(
+    id: string,
+    file: File | Blob,
+    options?: { userId?: string; fileName?: string; onProgress?: (p: number) => void }
+  ): Promise<string> {
+    if (!isSupabaseConfigured()) {
+      return this.fallbackProvider.saveVideoBinary(id, file);
+    }
+    const fileName = (file instanceof File && file.name) ? file.name : (options?.fileName || `video_${id}.mp4`);
+    const result = await uploadVideoToSupabaseStorage(file, fileName, {
+      userId: options?.userId,
+      onProgress: options?.onProgress ? (pct) => options.onProgress!(pct) : undefined,
+    });
+    return result.signedUrl;
+  }
+
+  async getVideoUrl(id: string, storagePath?: string): Promise<string | undefined> {
+    if (storagePath && isSupabaseConfigured()) {
+      const signedUrl = await createSignedVideoUrl(storagePath, 86400);
+      if (signedUrl) return signedUrl;
+    }
+    return this.fallbackProvider.getVideoUrl(id);
+  }
+
+  async deleteVideoBinary(id: string, storagePath?: string): Promise<void> {
+    if (storagePath && isSupabaseConfigured()) {
+      await deleteVideoFromSupabaseStorage(storagePath);
+    }
+    await this.fallbackProvider.deleteVideoBinary(id);
+  }
+
+  async estimateTotalSize(): Promise<number> {
+    return this.fallbackProvider.estimateTotalSize();
+  }
+}
+
+// Active storage provider (Supabase Storage if configured, or IndexedDB as zero-config local fallback)
+export const currentStorageProvider: StorageProvider = isSupabaseConfigured()
+  ? new SupabaseStorageProvider()
+  : new IndexedDBStorageProvider();
 
 // Available plans and their storage limits
 export const PLANS_CONFIG: Record<PlanTier, PlanConfig> = {
@@ -443,10 +508,10 @@ export function calculateStorageUsage(
   if (typeof serverRealBytes === 'number' && serverRealBytes >= 0) {
     totalUsedBytes = serverRealBytes;
   } else {
-    // Considera apenas arquivos reais em media/uploads e media/cuts
+    // Considera arquivos reais em media/uploads, media/cuts ou Supabase Storage (storagePath)
     const realVideos = (customVideos || []).filter((v) => {
       const url = v.videoUrl || '';
-      return url.includes('/media/uploads') || url.includes('/media/cuts');
+      return url.includes('/media/uploads') || url.includes('/media/cuts') || Boolean(v.storagePath);
     });
     totalUsedBytes = realVideos.reduce((acc, v) => acc + (v.sizeBytes || 0), 0);
   }

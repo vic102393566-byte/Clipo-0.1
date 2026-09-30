@@ -147,9 +147,9 @@ export default function App() {
       let modified = false;
       const updated = await Promise.all(
         videosList.map(async (v) => {
-          if (!v.videoUrl) {
-            const url = await currentStorageProvider.getVideoUrl(v.id);
-            if (url) {
+          if (!v.videoUrl || v.storagePath) {
+            const url = await currentStorageProvider.getVideoUrl(v.id, v.storagePath);
+            if (url && url !== v.videoUrl) {
               modified = true;
               return { ...v, videoUrl: url };
             }
@@ -319,14 +319,14 @@ export default function App() {
         throw new Error(errorData.error || `Erro HTTP ${response.status} ao excluir vídeo no servidor.`);
       }
 
-      // 2. Limpar do storage provider local (IndexedDB)
+      // 2. Limpar do storage provider (Supabase Storage ou IndexedDB)
       try {
-        await currentStorageProvider.deleteVideoBinary(id);
-        for (const relId of relatedIds) {
-          await currentStorageProvider.deleteVideoBinary(relId);
+        await currentStorageProvider.deleteVideoBinary(id, videoToDelete?.storagePath);
+        for (const relPart of relatedParts) {
+          await currentStorageProvider.deleteVideoBinary(relPart.id, relPart.storagePath);
         }
       } catch (storageErr) {
-        console.warn('Aviso ao remover do storage local:', storageErr);
+        console.warn('Aviso ao remover do storage:', storageErr);
       }
 
       // 3. Atualizar a lista de vídeos e metadados no localStorage imediatamente

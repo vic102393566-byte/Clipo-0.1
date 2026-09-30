@@ -194,9 +194,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-bold text-white">Configurações de Conta</h2>
-          <p className="text-xs text-[#FDBA74]">
-            Gerencie seu perfil de usuário, credenciais de acesso e preferências de alertas
-          </p>
         </div>
 
         <button
@@ -257,9 +254,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <User className="h-4 w-4 text-[#F97316]" />
             <span>Dados Pessoais & Foto de Perfil</span>
           </h3>
-          <p className="text-xs text-[#FDBA74] mt-1">
-            Essas informações identificam você no Clipo e nas comunicações automáticas
-          </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center gap-6">
@@ -292,9 +286,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             >
               Trocar foto de perfil
             </button>
-            <p className="text-[11px] text-[#FDBA74]">
-              Formatos recomendados: JPG, PNG ou WebP. Máximo de 5 MB.
-            </p>
           </div>
         </div>
 
@@ -521,9 +512,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Botão Sair da Conta */}
           <div className="w-full sm:w-auto">
             <p className="text-xs font-semibold text-white">Sair da conta</p>
-            <p className="text-[11px] text-[#FDBA74]">
-              Desconecta a sessão atual com segurança no navegador
-            </p>
             <button
               type="button"
               onClick={() => setIsLogoutModalOpen(true)}
@@ -537,9 +525,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Opção Excluir Conta */}
           <div className="w-full sm:w-auto text-left sm:text-right border-t sm:border-t-0 border-[#27272A] pt-3 sm:pt-0">
             <p className="text-xs font-semibold text-rose-400">Excluir conta definitivamente</p>
-            <p className="text-[11px] text-[#FDBA74]">
-              Remove todos os vídeos, agendamentos e contas vinculadas
-            </p>
             <button
               type="button"
               onClick={() => {

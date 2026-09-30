@@ -24,6 +24,7 @@ import { formatFileSize, extractVideoMetadata, parseDurationToSeconds } from '..
 import { VideoItem } from '../types';
 import { currentStorageProvider } from '../services/storageService';
 import { authService, DEFAULT_DEMO_USER } from '../services/authService';
+import { isSupabaseConfigured, uploadVideoToSupabaseStorage } from '../services/supabaseClient';
 
 interface UploadProgressModalProps {
   file: File | null;
@@ -61,11 +62,16 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
   const [isCopied, setIsCopied] = useState(false);
 
   const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const uploadFileToServer = (fileToUpload: File) => {
     if (xhrRef.current) {
       xhrRef.current.abort();
       xhrRef.current = null;
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
 
     setProgress(5);
@@ -76,6 +82,84 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
     const cleanTitle = fileToUpload.name.replace(/\.[^/.]+$/, '');
     const activeUser = authService.getCurrentUser() || DEFAULT_DEMO_USER;
     const videoId = `vid-${Date.now()}`;
+
+    // =========================================================================
+    // PROVEDOR 1: SUPABASE STORAGE (BUCKET PRIVADO: clipo-videos)
+    // Se configurado, envia diretamente para o Supabase Storage via TUS / Direct
+    // =========================================================================
+    if (isSupabaseConfigured()) {
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      (async () => {
+        try {
+          console.log(`[SUPABASE STORAGE] Iniciando upload para o bucket 'clipo-videos'...`);
+          // Extração rápida de thumbnail e duração no navegador
+          const meta = await extractVideoMetadata(fileToUpload);
+
+          // Upload com suporte automático a TUS Resumable para arquivos grandes
+          const result = await uploadVideoToSupabaseStorage(fileToUpload, fileToUpload.name, {
+            userId: activeUser.id,
+            signal: abortController.signal,
+            onProgress: (percent) => {
+              setProgress(percent);
+              if (percent >= 90 && percent < 100) {
+                setStatus('processing');
+              }
+            },
+          });
+
+          setProgress(100);
+          setStatus('completed');
+
+          const newVideo: VideoItem = {
+            id: videoId,
+            userId: activeUser.id,
+            title: cleanTitle || 'Vídeo sem título',
+            thumbnail: meta.thumbnail || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&auto=format&fit=crop&q=80',
+            videoUrl: result.signedUrl,
+            storagePath: result.storagePath,
+            duration: meta.duration || '1:00',
+            durationSeconds: parseDurationToSeconds(meta.duration),
+            uploadedAt: 'Hoje, agora há pouco',
+            createdAt: new Date().toISOString(),
+            viewsTotal: 0,
+            publishedCount: 0,
+            status: 'disponivel',
+            fileSize: formatFileSize(fileToUpload.size),
+            sizeBytes: fileToUpload.size,
+            uploadedBy: activeUser.email || 'vicente@clipo.io',
+            storageProvider: 'Supabase Storage (clipo-videos)',
+            description: '',
+            hashtags: [],
+          };
+
+          setCreatedVideo(newVideo);
+          onUploadComplete(newVideo);
+
+          setGeneratedTitle(`Corte: ${cleanTitle}`);
+          setGeneratedDescription(`Vídeo gravado e otimizado com áudio e vídeo de alta qualidade.`);
+          setGeneratedHashtags('#clipo #shorts #reels #viral');
+          console.log(`[SUPABASE UPLOAD CONCLUÍDO] Vídeo finalizado com sucesso no Supabase Storage: ${result.storagePath}`);
+        } catch (err: any) {
+          if (abortController.signal.aborted) {
+            console.warn('[UPLOAD CANCELADO]: Processamento interrompido pelo usuário.');
+            return;
+          }
+          console.error('[ERRO SUPABASE STORAGE]:', err);
+          setStatus('error');
+          setErrorMessage(err.message || 'Falha no upload para o Supabase Storage — Tentar novamente');
+        } finally {
+          abortControllerRef.current = null;
+        }
+      })();
+      return;
+    }
+
+    // =========================================================================
+    // PROVEDOR 2: LOCAL SERVER / DESENVOLVIMENTO
+    // Fallback caso as chaves do Supabase ainda não estejam configuradas no .env
+    // =========================================================================
 
     const formData = new FormData();
     formData.append('videoFile', fileToUpload);
@@ -203,6 +287,10 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
         xhrRef.current.abort();
         xhrRef.current = null;
       }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
       setProgress(0);
       setStatus('idle');
       setInternalFile(null);
@@ -224,6 +312,10 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
       if (xhrRef.current) {
         xhrRef.current.abort();
         xhrRef.current = null;
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
     };
   }, [isOpen, internalFile]);
@@ -516,18 +608,9 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
         {/* 5. FUNÇÕES APRESENTADAS APÓS O UPLOAD (Requirement 5) */}
         {status === 'completed' && createdVideo && (
           <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-bold text-white">
-                Funções inteligentes disponíveis:
-              </span>
-              <span className="text-[10px] text-[#FDBA74]">
-                Escolha o próximo passo
-              </span>
-            </div>
-
             {/* Feature 1: Corte Automático 9:16 */}
             <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[#F97316]/50 transition">
-              <div className="flex items-start gap-2.5">
+              <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F97316]/15 text-[#F97316]">
                   <Scissors className="h-4 w-4" />
                 </div>
@@ -535,9 +618,6 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                   <h3 className="text-xs font-semibold text-white">
                     Corte automático 9:16
                   </h3>
-                  <p className="text-[11px] text-[#FDBA74]">
-                    Dividir em partes dinâmicas de 30s, 60s ou tempo customizado
-                  </p>
                 </div>
               </div>
 
@@ -559,7 +639,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
 
             {/* Feature 2: Legendas Automáticas Dinâmicas */}
             <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-3 flex items-center justify-between gap-3 hover:border-[#F97316]/50 transition">
-              <div className="flex items-start gap-2.5">
+              <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
                   <Sparkles className="h-4 w-4" />
                 </div>
@@ -567,9 +647,6 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                   <h3 className="text-xs font-semibold text-white">
                     Legendas automáticas
                   </h3>
-                  <p className="text-[11px] text-[#FDBA74]">
-                    Transcrição inteligente com destaque nas palavras de impacto
-                  </p>
                 </div>
               </div>
 

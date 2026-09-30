@@ -112,12 +112,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 />
               </svg>
             </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xl font-bold tracking-tight text-white">clipo</span>
-                <span className="h-1.5 w-1.5 rounded-full bg-[#F97316]"></span>
-              </div>
-              <span className="text-[11px] font-medium text-[#FDBA74]">Video Automation</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xl font-bold tracking-tight text-white">clipo</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-[#F97316]"></span>
             </div>
           </div>
 
@@ -180,18 +177,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     }`}
                   />
                   <span className="truncate">{item.label}</span>
-
-                  {item.id === 'agendamentos' && (
-                    <span className="ml-auto font-mono text-xs tabular-nums text-[#F97316]">
-                      24
-                    </span>
-                  )}
-
-                  {item.id === 'contas' && (
-                    <span className="ml-auto font-mono text-xs tabular-nums text-[#FDBA74]">
-                      4
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -237,12 +222,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }`}
                 style={{ width: `${Math.min(displayPercent, 100)}%` }}
               />
-            </div>
-            <div className="mt-2 flex items-center justify-between text-[11px] text-[#FDBA74]">
-              <span className="font-mono tabular-nums">{displayPercent}% utilizado</span>
-              <span className="flex items-center gap-0.5 text-[#F97316] hover:text-[#A78BFA]">
-                Gerenciar
-              </span>
             </div>
           </div>
 

@@ -3,7 +3,6 @@ import {
   Scissors,
   X,
   Clock,
-  Layers,
   Sparkles,
   CheckCircle2,
   AlertCircle,
@@ -102,18 +101,6 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
     const remainder = videoTotalSeconds - (fullParts * chunkSeconds);
     estimatedParts = remainder >= 2.0 ? fullParts + 1 : Math.max(1, fullParts);
   }
-
-  const getPartsBreakdown = (totalSec: number, chunkSec: number): string => {
-    if (totalSec <= chunkSec) {
-      return 'Gera 1 vídeo (duração total)';
-    }
-    const full = Math.floor(totalSec / chunkSec);
-    const rem = Math.round(totalSec - (full * chunkSec));
-    if (rem >= 2) {
-      return `Gera ${full + 1} partes (${full} de ${formatDuration(chunkSec)} + 1 de ${formatDuration(rem)})`;
-    }
-    return `Gera ${full} partes de ${formatDuration(chunkSec)}`;
-  };
 
   const handleStartSplit = async () => {
     setIsProcessing(true);
@@ -541,19 +528,13 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                       key={opt.id}
                       type="button"
                       onClick={() => setSelectedOption(opt.id)}
-                      className={`flex flex-col items-start rounded-xl border p-3 text-left transition cursor-pointer ${
+                      className={`flex items-center justify-between rounded-xl border p-3 text-left transition cursor-pointer ${
                         isSelected
                           ? 'border-[#F97316] bg-[#F97316]/10 shadow-sm shadow-[#F97316]/20'
                           : 'border-[#27272A] bg-[#0A0A0A] hover:border-[#F97316]/40 hover:bg-[#151515]'
                       }`}
                     >
-                      <div className="flex w-full items-center justify-between">
-                        <span className="text-xs font-bold text-white">{opt.label}</span>
-                        {isSelected && <span className="h-2 w-2 rounded-full bg-[#F97316]" />}
-                      </div>
-                      <span className="mt-1 font-mono text-[11px] text-[#FDBA74]">
-                        {getPartsBreakdown(videoTotalSeconds, opt.seconds)}
-                      </span>
+                      <span className="text-xs font-bold text-white">{opt.label}</span>
                     </button>
                   );
                 })}
@@ -570,13 +551,7 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-white">Duração personalizada</span>
-                  {selectedOption === 'custom' && (
-                    <span className="h-2 w-2 rounded-full bg-[#F97316]" />
-                  )}
                 </div>
-                <p className="mt-0.5 text-[11px] text-[#FDBA74]">
-                  Defina o intervalo exato de corte para os vídeos
-                </p>
 
                 {selectedOption === 'custom' && (
                   <div className="mt-3 flex items-center gap-3 pt-2 border-t border-[#27272A]">
@@ -605,21 +580,6 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                     </div>
                   </div>
                 )}
-              </div>
-
-              {/* Split Preview Calculation Banner */}
-              <div className="rounded-xl border border-[#F97316]/30 bg-[#F97316]/10 p-3.5 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <Layers className="h-4 w-4 text-[#F97316] shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-white">
-                      Estimativa: <span className="text-[#F97316] font-mono">{estimatedParts} {estimatedParts === 1 ? 'vídeo' : 'vídeos individuais'}</span>
-                    </p>
-                    <p className="text-[11px] text-[#FDBA74] font-mono">
-                      {video.duration} divididos em blocos de {formatDuration(chunkSeconds)}
-                    </p>
-                  </div>
-                </div>
               </div>
             </div>
           )}
