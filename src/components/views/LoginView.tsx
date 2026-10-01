@@ -19,11 +19,13 @@ import { User } from '../../types';
 interface LoginViewProps {
   onLoginSuccess: (user: User) => void;
   initialMode?: 'login' | 'register';
+  onNavigate?: (path: string) => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
   onLoginSuccess,
   initialMode = 'login',
+  onNavigate,
 }) => {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
 
@@ -527,7 +529,34 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
 
         {/* Footer info */}
-        <div className="text-center text-[11px] text-[#FDBA74]">
+        <div className="text-center text-[11px] text-[#FDBA74] space-y-2">
+          <div className="flex items-center justify-center gap-3 text-xs">
+            <a
+              href="/termos"
+              onClick={(e) => {
+                if (onNavigate) {
+                  e.preventDefault();
+                  onNavigate('/termos');
+                }
+              }}
+              className="text-[#FDBA74] hover:text-white transition underline underline-offset-4"
+            >
+              Termos de Serviço
+            </a>
+            <span className="text-[#27272A]">·</span>
+            <a
+              href="/privacidade"
+              onClick={(e) => {
+                if (onNavigate) {
+                  e.preventDefault();
+                  onNavigate('/privacidade');
+                }
+              }}
+              className="text-[#FDBA74] hover:text-white transition underline underline-offset-4"
+            >
+              Política de Privacidade
+            </a>
+          </div>
           <p>© 2026 Clipo · Automação e publicação inteligente</p>
         </div>
       </div>

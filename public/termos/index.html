@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="pt-BR" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Termos de Serviço - Clipo</title>
+    <meta name="description" content="Termos de Serviço e condições gerais de uso da plataforma Clipo para gerenciamento, corte e agendamento de vídeos." />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background-color: #0A0A0A;
+        color: #E2E8F0;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        line-height: 1.6;
+        min-height: 100vh;
+      }
+      a { color: inherit; text-decoration: none; }
+      .container { max-width: 900px; margin: 0 auto; padding: 0 20px; }
+      header {
+        border-bottom: 1px solid #27272A;
+        background: rgba(10, 10, 10, 0.95);
+        backdrop-filter: blur(10px);
+        position: sticky;
+        top: 0;
+        z-index: 50;
+      }
+      .header-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 0;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 1.15rem;
+        color: #FFFFFF;
+      }
+      .logo-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #F97316, #EA580C);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+      }
+      .header-actions { display: flex; align-items: center; gap: 14px; }
+      .header-link { font-size: 13px; color: #FDBA74; transition: color 0.2s; }
+      .header-link:hover { color: #FFFFFF; }
+      .btn-app {
+        background: #151515;
+        border: 1px solid #27272A;
+        padding: 8px 14px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #FFFFFF;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+      }
+      .btn-app:hover { border-color: #F97316; background: #1E1E1E; }
+      main { padding: 40px 0 60px; }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(249, 115, 22, 0.1);
+        border: 1px solid rgba(249, 115, 22, 0.3);
+        color: #F97316;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 16px;
+      }
+      h1 { font-size: 2rem; font-weight: 800; color: #FFFFFF; margin-bottom: 8px; }
+      .subtitle { font-size: 13px; color: #FDBA74; margin-bottom: 24px; }
+      .intro-text { font-size: 14px; color: #CBD5E1; margin-bottom: 32px; line-height: 1.7; }
+      .card {
+        background: #151515;
+        border: 1px solid #27272A;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
+      }
+      .card h2 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #FFFFFF;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .step-num {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        background: rgba(249, 115, 22, 0.2);
+        color: #F97316;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .card p { font-size: 13.5px; color: #CBD5E1; margin-bottom: 12px; line-height: 1.7; }
+      .card ul { padding-left: 20px; font-size: 13.5px; color: #CBD5E1; margin-bottom: 12px; }
+      .card li { margin-bottom: 6px; }
+      .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .mini-box {
+        background: #0A0A0A;
+        border: 1px solid #27272A;
+        border-radius: 12px;
+        padding: 14px;
+      }
+      .mini-box strong { font-size: 12px; color: #FFFFFF; display: block; margin-bottom: 4px; }
+      .mini-box p { font-size: 11.5px; color: #94A3B8; margin-bottom: 0; line-height: 1.5; }
+      .info-box {
+        background: #0A0A0A;
+        border: 1px solid #27272A;
+        border-radius: 12px;
+        padding: 16px;
+        font-size: 12px;
+        font-family: monospace;
+        color: #FDBA74;
+        line-height: 1.8;
+      }
+      footer {
+        border-top: 1px solid #27272A;
+        padding: 30px 0;
+        margin-top: 40px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+        font-size: 12px;
+        color: #FDBA74;
+      }
+      @media(min-width: 640px) {
+        footer { flex-direction: row; justify-content: space-between; }
+        h1 { font-size: 2.3rem; }
+      }
+      .footer-link { color: #F97316; font-weight: 600; }
+      .footer-link:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container header-inner">
+        <a href="/" class="brand" title="Ir para a página inicial do Clipo">
+          <div class="logo-icon">✂</div>
+          <span>Clipo</span>
+        </a>
+        <div class="header-actions">
+          <a href="/privacidade" class="header-link">Política de Privacidade</a>
+          <a href="/" class="btn-app">← Acessar o Clipo</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="badge">Documento Oficial de Uso</div>
+      <h1>Termos de Serviço do Clipo</h1>
+      <p class="subtitle">Última atualização: 01 de outubro de 2026 · Versão 1.2</p>
+
+      <p class="intro-text">
+        Bem-vindo ao <strong>Clipo</strong>. Ao utilizar nossa plataforma web de gestão de vídeos, cortes no formato vertical 9:16 e agendamento para redes sociais, você concorda expressamente com os presentes Termos de Serviço. Leia atentamente este documento.
+      </p>
+
+      <section class="card">
+        <h2><span class="step-num">1</span> Visão Geral e Aceitação</h2>
+        <p>
+          O <strong>Clipo</strong> é uma aplicação de software desenvolvida para auxiliar criadores de conteúdo, editores e agências na gestão, adaptação e agendamento de publicações de vídeos curtos em redes sociais autorizadas pelo usuário.
+        </p>
+        <p>
+          Ao acessar ou utilizar qualquer recurso do Clipo, você confirma ter pelo menos 18 anos de idade e concorda integralmente com estes Termos de Serviço e com a nossa Política de Privacidade.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2><span class="step-num">2</span> Descrição dos Serviços</h2>
+        <p>O Clipo disponibiliza funcionalidades que incluem:</p>
+        <ul>
+          <li>Upload e armazenamento temporário de arquivos de vídeo em nuvem;</li>
+          <li>Ferramenta de recorte e divisão de vídeos longos em múltiplos cortes no formato vertical 9:16;</li>
+          <li>Assistência na organização de títulos, descrições e hashtags informativas;</li>
+          <li>Calendário e fila de agendamento de postagens;</li>
+          <li>Publicação automatizada em plataformas parceiras através de autorização expressa do usuário (OAuth 2.0).</li>
+        </ul>
+        <p style="color: #FDBA74; font-size: 12.5px;">
+          O Clipo não garante métricas, monetização, retenção ou alcance em nenhuma rede social. Nossa plataforma atua exclusivamente como ferramenta de produtividade e publicação.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2><span class="step-num">3</span> Integrações com Plataformas de Terceiros e APIs Oficiais</h2>
+        <p>
+          O Clipo conecta-se a redes sociais através de interfaces oficiais (APIs) e do protocolo seguro OAuth 2.0:
+        </p>
+        <div class="grid-3">
+          <div class="mini-box">
+            <strong>TikTok Developer API</strong>
+            <p>Utiliza a Direct Post API v2 oficial do TikTok. O usuário deve cumprir as Diretrizes da Comunidade e os Termos de Serviço do TikTok.</p>
+          </div>
+          <div class="mini-box">
+            <strong>YouTube Data API</strong>
+            <p>Sujeito aos Termos de Serviço do YouTube e à Política de Privacidade do Google para postagem de Shorts e vídeos.</p>
+          </div>
+          <div class="mini-box">
+            <strong>Meta Graph API</strong>
+            <p>Para autenticação de contas creator no Instagram em conformidade com os Termos da Plataforma Meta.</p>
+          </div>
+        </div>
+        <p style="margin-top: 14px;">
+          <strong>Isenção de Afiliação:</strong> O Clipo é uma ferramenta independente e não possui vínculo corporativo, parceria exclusiva, patrocínio ou endosso por parte de TikTok Inc., ByteDance Ltd., Google LLC ou Meta Platforms Inc.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2><span class="step-num">4</span> Propriedade Intelectual e Conteúdo do Usuário</h2>
+        <p>
+          <strong>Seu Conteúdo Permanece Seu:</strong> O Clipo não reivindica qualquer direito de propriedade sobre os vídeos, áudios, imagens ou textos que você envia para a plataforma. Você mantém 100% da titularidade de seus direitos autorais.
+        </p>
+        <p>
+          Ao enviar ou agendar vídeos, você declara possuir todas as autorizações, direitos autorais e licenças de imagem e trilha sonora necessárias para veiculação nas plataformas parceiras. É proibida a veiculação de conteúdos ilícitos, infratores de direitos autorais ou que violem as diretrizes de comunidade de cada rede social.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2><span class="step-num">5</span> Contas de Acesso e Responsabilidades</h2>
+        <p>
+          Você é o único responsável pela guarda e confidencialidade de sua senha de acesso. Caso identifique qualquer uso não autorizado de sua conta, notifique imediatamente nossa equipe.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2><span class="step-num">6</span> Informações Institucionais e Contato</h2>
+        <p>Dúvidas sobre estes Termos de Serviço podem ser encaminhadas para nossos canais de suporte:</p>
+        <div class="info-box">
+          <p><strong style="color: #fff;">Aplicação:</strong> Clipo (Plataforma Web de Edição e Agendamento de Vídeos)</p>
+          <p><strong style="color: #fff;">Responsável Legal:</strong> [Razão Social / Nome do Desenvolvedor: Clipo Tecnologia]</p>
+          <p><strong style="color: #fff;">E-mail de Suporte:</strong> [E-mail de Contato: suporte@clipo.app]</p>
+          <p><strong style="color: #fff;">Website Oficial:</strong> https://clipo-0-1.vercel.app</p>
+        </div>
+      </section>
+
+      <footer>
+        <a href="/privacidade" class="footer-link">Consultar Política de Privacidade →</a>
+        <p>© 2026 Clipo · Todos os direitos reservados.</p>
+      </footer>
+    </main>
+  </body>
+</html>

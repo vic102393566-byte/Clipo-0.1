@@ -10,6 +10,8 @@ import { StorageView } from './components/views/StorageView';
 import { PlanView } from './components/views/PlanView';
 import { SettingsView } from './components/views/SettingsView';
 import { LoginView } from './components/views/LoginView';
+import { TermsView } from './components/views/TermsView';
+import { PrivacyView } from './components/views/PrivacyView';
 import { UploadVideoModal } from './components/UploadVideoModal';
 import { UploadProgressModal } from './components/UploadProgressModal';
 import { VideoPreviewModal } from './components/VideoPreviewModal';
@@ -68,6 +70,44 @@ export default function App() {
   // Authentication session state
   const [currentUser, setCurrentUser] = useState<User | null>(() => authService.getCurrentUser());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => authService.isAuthenticated());
+
+  // Public standalone route detection for /termos and /privacidade
+  const checkPublicRoute = (rawPath?: string): 'termos' | 'privacidade' | null => {
+    if (typeof window === 'undefined') return null;
+    const path = (rawPath || window.location.pathname || '')
+      .toLowerCase()
+      .split('?')[0]
+      .split('#')[0]
+      .trim()
+      .replace(/\/+$/, '');
+
+    if (path === '/termos' || path.endsWith('/termos') || path === '/termos.html') {
+      return 'termos';
+    }
+    if (path === '/privacidade' || path.endsWith('/privacidade') || path === '/privacidade.html') {
+      return 'privacidade';
+    }
+    return null;
+  };
+
+  const [currentPublicRoute, setCurrentPublicRoute] = useState<'termos' | 'privacidade' | null>(() => checkPublicRoute());
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPublicRoute(checkPublicRoute());
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleNavigatePublic = useCallback((targetPath: string) => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', targetPath);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    setCurrentPublicRoute(checkPublicRoute(targetPath));
+  }, []);
 
   const currentUserId = currentUser?.id;
   const isDemo = isCurrentUserDemo(currentUserId);
@@ -524,9 +564,21 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
+  // Check directly from window.location as well on every render to ensure immediate zero-delay display
+  const activePublicRoute = currentPublicRoute || (typeof window !== 'undefined' ? checkPublicRoute() : null);
+
+  // Standalone public routes accessible without login (do not redirect to dashboard)
+  if (activePublicRoute === 'termos') {
+    return <TermsView onNavigate={handleNavigatePublic} />;
+  }
+
+  if (activePublicRoute === 'privacidade') {
+    return <PrivacyView onNavigate={handleNavigatePublic} />;
+  }
+
   // If user is currently logged out, display dedicated Login/Register screen
   if (!isAuthenticated || !currentUser) {
-    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+    return <LoginView onLoginSuccess={handleLoginSuccess} onNavigate={handleNavigatePublic} />;
   }
 
   return (

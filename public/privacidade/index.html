@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="pt-BR" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Política de Privacidade - Clipo</title>
+    <meta name="description" content="Política de Privacidade e proteção de dados da plataforma Clipo, detalhando o tratamento de dados de conta e integrações com redes sociais como o TikTok." />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background-color: #0A0A0A;
+        color: #E2E8F0;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        line-height: 1.6;
+        min-height: 100vh;
+      }
+      a { color: inherit; text-decoration: none; }
+      .container { max-width: 900px; margin: 0 auto; padding: 0 20px; }
+      header {
+        border-bottom: 1px solid #27272A;
+        background: rgba(10, 10, 10, 0.95);
+        backdrop-filter: blur(10px);
+        position: sticky;
+        top: 0;
+        z-index: 50;
+      }
+      .header-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 0;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 1.15rem;
+        color: #FFFFFF;
+      }
+      .logo-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #F97316, #EA580C);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+      }
+      .header-actions { display: flex; align-items: center; gap: 14px; }
+      .header-link { font-size: 13px; color: #FDBA74; transition: color 0.2s; }
+      .header-link:hover { color: #FFFFFF; }
+      .btn-app {
+        background: #151515;
+        border: 1px solid #27272A;
+        padding: 8px 14px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #FFFFFF;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+      }
+      .btn-app:hover { border-color: #F97316; background: #1E1E1E; }
+      main { padding: 40px 0 60px; }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        color: #10B981;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 16px;
+      }
+      h1 { font-size: 2rem; font-weight: 800; color: #FFFFFF; margin-bottom: 8px; }
+      .subtitle { font-size: 13px; color: #FDBA74; margin-bottom: 24px; }
+      .intro-text { font-size: 14px; color: #CBD5E1; margin-bottom: 32px; line-height: 1.7; }
+      .card {
+        background: #151515;
+        border: 1px solid #27272A;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
+      }
+      .card-cyan {
+        background: rgba(6, 182, 212, 0.05);
+        border: 1px solid rgba(6, 182, 212, 0.3);
+      }
+      .card h2 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #FFFFFF;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .step-num {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        background: rgba(249, 115, 22, 0.2);
+        color: #F97316;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .step-num-cyan {
+        background: rgba(6, 182, 212, 0.2);
+        color: #06B6D4;
+      }
+      .card p { font-size: 13.5px; color: #CBD5E1; margin-bottom: 12px; line-height: 1.7; }
+      .card ul { padding-left: 20px; font-size: 13.5px; color: #CBD5E1; margin-bottom: 12px; }
+      .card li { margin-bottom: 6px; }
+      .subcard {
+        background: #0A0A0A;
+        border: 1px solid #27272A;
+        border-radius: 12px;
+        padding: 16px;
+        margin-top: 10px;
+        margin-bottom: 12px;
+      }
+      .subcard h3 { font-size: 13px; color: #FFFFFF; margin-bottom: 6px; }
+      .subcard p { font-size: 12px; color: #94A3B8; margin-bottom: 0; line-height: 1.6; }
+      .subcard-cyan {
+        background: #0A0A0A;
+        border: 1px solid rgba(6, 182, 212, 0.2);
+      }
+      code {
+        font-family: monospace;
+        background: rgba(255, 255, 255, 0.08);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11.5px;
+        color: #FDBA74;
+      }
+      .info-box {
+        background: #0A0A0A;
+        border: 1px solid #27272A;
+        border-radius: 12px;
+        padding: 16px;
+        font-size: 12px;
+        font-family: monospace;
+        color: #FDBA74;
+        line-height: 1.8;
+      }
+      footer {
+        border-top: 1px solid #27272A;
+        padding: 30px 0;
+        margin-top: 40px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+        font-size: 12px;
+        color: #FDBA74;
+      }
+      @media(min-width: 640px) {
+        footer { flex-direction: row; justify-content: space-between; }
+        h1 { font-size: 2.3rem; }
+      }
+      .footer-link { color: #F97316; font-weight: 600; }
+      .footer-link:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container header-inner">
+        <a href="/" class="brand" title="Ir para a página inicial do Clipo">
+          <div class="logo-icon">✂</div>
+          <span>Clipo</span>
+        </a>
+        <div class="header-actions">
+          <a href="/termos" class="header-link">Termos de Serviço</a>
+          <a href="/" class="btn-app">← Acessar o Clipo</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="badge">Privacidade & Proteção de Dados</div>
+      <h1>Política de Privacidade do Clipo</h1>
+      <p class="subtitle">Última atualização: 01 de outubro de 2026 · Versão 1.2</p>
+
+      <p class="intro-text">
+        A sua privacidade é um compromisso fundamental do <strong>Clipo</strong>. Esta Política descreve de forma clara e transparente como coletamos, tratamos, protegemos e armazenamos seus dados cadastrais e as credenciais das redes sociais conectadas à plataforma.
+      </p>
+
+      <section class="card">
+        <h2><span class="step-num">1</span> Dados que Coletamos</h2>
+        <p>Para fornecer as ferramentas de gestão, corte e publicação de vídeos, coletamos as seguintes categorias de dados:</p>
+
+        <div class="subcard">
+          <h3>A. Dados de Cadastro e Conta</h3>
+          <p>Nome completo, endereço de e-mail e senha criptografada. As senhas são protegidas com algoritmos de hash criptográfico seguros e jamais são visualizadas ou armazenadas em texto simples.</p>
+        </div>
+
+        <div class="subcard">
+          <h3>B. Dados de Integração com Redes Sociais (OAuth 2.0)</h3>
+          <p>Quando você conecta o TikTok, YouTube ou Instagram, utilizamos o protocolo oficial OAuth 2.0. O Clipo nunca recebe nem armazena a senha da sua rede social. Coletamos estritamente:</p>
+          <ul style="margin-top: 8px; font-size: 12px; color: #94A3B8;">
+            <li>Identificador público da conta ou canal (ex: <code>open_id</code> no TikTok);</li>
+            <li>Nome público de exibição e nome de usuário (handle);</li>
+            <li>Foto de perfil pública (avatar);</li>
+            <li>Contagem aproximada de seguidores (para métricas no painel);</li>
+            <li>Tokens de autorização segura (<code>access_token</code> e <code>refresh_token</code>), que são criptografados no servidor.</li>
+          </ul>
+        </div>
+
+        <div class="subcard">
+          <h3>C. Arquivos de Mídia</h3>
+          <p>Vídeos (.mp4, .mov, .webm) carregados para edição e postagem, miniaturas e descrições das publicações.</p>
+        </div>
+      </section>
+
+      <section class="card card-cyan">
+        <h2><span class="step-num step-num-cyan">2</span> Tratamento Específico de Dados do TikTok (API Oficial v2)</h2>
+        <p>
+          O Clipo está em estrita conformidade com os <strong>TikTok Developer Terms of Service</strong> e a <strong>TikTok API Policy</strong>. A integração utiliza a Direct Post API v2 oficial:
+        </p>
+        <div class="subcard subcard-cyan">
+          <p style="color: #06B6D4; font-weight: 600; margin-bottom: 6px;">Escopos solicitados e finalidades:</p>
+          <ul style="font-size: 12px; color: #E2E8F0; padding-left: 18px;">
+            <li><code>user.info.basic</code> e <code>user.info.profile</code>: Identificar a conta conectada e exibir o nome, avatar e contagem de seguidores no painel;</li>
+            <li><code>video.upload</code> e <code>video.publish</code>: Efetuar o upload e a postagem do vídeo agendado na conta do usuário no TikTok quando o horário programado for atingido ou quando o usuário solicitar manualmente.</li>
+          </ul>
+        </div>
+        <p style="font-size: 12.5px; color: #CBD5E1;">
+          <strong>Garantia de Não-Compartilhamento:</strong> O Clipo <strong>NÃO</strong> compartilha, vende, transfere ou comercializa nenhum dado obtido através da API do TikTok com terceiros para fins de publicidade direcionada, corretores de dados (data brokers) ou sistemas externos de rastreamento.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2><span class="step-num">3</span> Finalidades do Uso dos Dados</h2>
+        <p>Utilizamos os dados coletados estritamente para as seguintes finalidades:</p>
+        <ul>
+          <li>Autenticar o acesso do usuário à plataforma com segurança;</li>
+          <li>Processar, recortar e converter vídeos em formatos compatíveis com celulares (9:16);</li>
+          <li>Manter o agendamento de postagens e disparar a publicação na data e hora selecionadas pelo usuário;</li>
+          <li>Calcular e apresentar o uso da cota de armazenamento em nuvem e limites do plano contratado;</li>
+          <li>Garantir a segurança técnica, prevenir abusos e atender a obrigações legais aplicáveis.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2><span class="step-num">4</span> Armazenamento, Segurança e Criptografia</h2>
+        <p>
+          Todas as comunicações entre o navegador, o servidor do Clipo e as APIs do TikTok ocorrem sob criptografia HTTPS/TLS. Os tokens de acesso residem em ambiente protegido de backend e nunca são transmitidos ao navegador.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2><span class="step-num">5</span> Seus Direitos e Exclusão de Dados</h2>
+        <p>Você possui controle total sobre suas informações e conexões sociais:</p>
+        <ul>
+          <li><strong>Desconexão com 1 Clique:</strong> Na aba "Canais Oficiais OAuth", você pode clicar em "Desconectar" a qualquer momento para remover imediatamente as credenciais do servidor;</li>
+          <li><strong>Exclusão de Conta:</strong> Na aba "Configurações", você pode solicitar a exclusão definitiva de sua conta, o que remove irreversivelmente seu perfil, vídeos armazenados e histórico de agendamentos;</li>
+          <li><strong>Revogação pelo TikTok:</strong> Você também pode revogar a permissão do Clipo diretamente nas configurações de privacidade do seu aplicativo TikTok (em "Segurança e Permissões" &gt; "Apps e Serviços Autorizados").</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2><span class="step-num">6</span> Contato do Encarregado de Dados (DPO)</h2>
+        <p>Para exercer seus direitos de titular dos dados ou esclarecer dúvidas sobre esta Política, entre em contato:</p>
+        <div class="info-box">
+          <p><strong style="color: #fff;">Aplicação:</strong> Clipo (Gerenciamento e Publicação de Mídia)</p>
+          <p><strong style="color: #fff;">Controlador de Dados:</strong> [Razão Social / Nome do Desenvolvedor: Clipo Tecnologia]</p>
+          <p><strong style="color: #fff;">E-mail de Privacidade e DPO:</strong> [E-mail de Privacidade: privacidade@clipo.app]</p>
+          <p><strong style="color: #fff;">Website Oficial:</strong> https://clipo-0-1.vercel.app</p>
+        </div>
+      </section>
+
+      <footer>
+        <a href="/termos" class="footer-link">Consultar Termos de Serviço →</a>
+        <p>© 2026 Clipo · Todos os direitos reservados.</p>
+      </footer>
+    </main>
+  </body>
+</html>
