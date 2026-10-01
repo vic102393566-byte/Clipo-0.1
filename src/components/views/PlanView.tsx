@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { PlanTier, PlanConfig } from '../../types';
 import { PLANS_CONFIG } from '../../services/storageService';
+import { useI18n } from '../../i18n/I18nContext';
 
 interface PlanViewProps {
   storageUsage?: {
@@ -40,8 +41,11 @@ export const PlanView: React.FC<PlanViewProps> = ({
   videosCount = 0,
   onBack,
 }) => {
+  const { t, language } = useI18n();
+  const isEn = language === 'en-US';
+
   const currentPlan = PLANS_CONFIG[activePlan] || PLANS_CONFIG.pro;
-  const displayUsed = storageUsage?.usedFormatted || '0,0 GB';
+  const displayUsed = storageUsage?.usedFormatted || '0.0 GB';
   const displayLimit = storageUsage?.limitFormatted || currentPlan.labelLimit;
   const displayPercent = storageUsage?.percentUsed ?? 0;
   const isOverLimit = storageUsage?.isOverLimit ?? false;
@@ -53,7 +57,11 @@ export const PlanView: React.FC<PlanViewProps> = ({
     if (tier === activePlan) return;
     if (onSwitchPlan) {
       onSwitchPlan(tier);
-      setUpgradeSuccessMsg(`Seu plano foi atualizado com sucesso para ${PLANS_CONFIG[tier].name}! Os novos limites de armazenamento e canais já estão ativos.`);
+      setUpgradeSuccessMsg(
+        isEn
+          ? `Plan successfully switched to ${PLANS_CONFIG[tier].name}! Your new storage and channel quotas are now active.`
+          : `Seu plano foi atualizado com sucesso para ${PLANS_CONFIG[tier].name}! Os novos limites de armazenamento e canais já estão ativos.`
+      );
       setTimeout(() => setUpgradeSuccessMsg(null), 4000);
     }
   };
@@ -69,10 +77,10 @@ export const PlanView: React.FC<PlanViewProps> = ({
             type="button"
             onClick={onBack}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#FDBA74] hover:text-white transition py-1.5 px-3 -ml-1 rounded-xl hover:bg-[#151515] border border-transparent hover:border-[#27272A] cursor-pointer group"
-            title="Voltar para a tela anterior"
+            title={t.common.back}
           >
             <span className="text-base font-bold leading-none transition-transform group-hover:-translate-x-0.5">←</span>
-            <span>Voltar</span>
+            <span>{t.common.back}</span>
           </button>
         </div>
       )}
@@ -83,18 +91,18 @@ export const PlanView: React.FC<PlanViewProps> = ({
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-[#F97316]" />
             <span className="text-xs font-semibold text-[#F97316] uppercase tracking-wider">
-              Gestão de Assinatura
+              {isEn ? 'Subscription & Billing' : 'Gestão de Assinatura'}
             </span>
           </div>
-          <h2 className="mt-1 text-lg font-bold text-white">Meu plano</h2>
+          <h2 className="mt-1 text-lg font-bold text-white">{t.plan.title}</h2>
           <p className="text-xs text-[#FDBA74]">
-            Acompanhe o uso de armazenamento em tempo real e os limites da sua assinatura
+            {t.plan.subtitle}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <div className="rounded-xl border border-[#27272A] bg-[#151515] px-3.5 py-1.5 font-mono text-xs text-[#FDBA74]">
-            Plano atual: <strong className="text-white">{currentPlan.name}</strong> ({currentPlan.priceMonthly}/mês)
+            {t.plan.currentPlanBadge}: <strong className="text-white">{currentPlan.name}</strong> ({currentPlan.priceMonthly}{t.plan.perMonth})
           </div>
         </div>
       </div>
@@ -108,9 +116,9 @@ export const PlanView: React.FC<PlanViewProps> = ({
           </div>
           <button
             onClick={() => setUpgradeSuccessMsg(null)}
-            className="text-emerald-400 hover:text-emerald-200 font-semibold"
+            className="text-emerald-400 hover:text-emerald-200 font-semibold cursor-pointer"
           >
-            Fechar
+            {t.common.close}
           </button>
         </div>
       )}
@@ -120,9 +128,9 @@ export const PlanView: React.FC<PlanViewProps> = ({
         <div className="flex items-start gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs text-rose-200 shadow-xl">
           <AlertTriangle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h4 className="font-semibold text-rose-100">Limite de Armazenamento Atingido!</h4>
+            <h4 className="font-semibold text-rose-100">{t.videos.storageWarning.title}</h4>
             <p className="mt-0.5 text-rose-300/90 leading-relaxed">
-              Você atingiu o teto de {currentPlan.labelLimit} do plano {currentPlan.name}. Novos uploads de vídeo e cortes automáticos estão bloqueados até você fazer upgrade ou liberar espaço.
+              {t.videos.storageWarning.desc}
             </p>
           </div>
         </div>
@@ -137,19 +145,19 @@ export const PlanView: React.FC<PlanViewProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-white">Plano {currentPlan.name}</h3>
+                <h3 className="text-base font-bold text-white">{currentPlan.name}</h3>
                 <span className="rounded-full bg-[#F97316]/20 border border-[#F97316]/40 px-2.5 py-0.5 text-[10px] font-semibold text-[#F97316]">
-                  Assinatura Ativa
+                  {t.plan.currentPlanBtn}
                 </span>
               </div>
               <p className="text-xs text-[#FDBA74] mt-0.5">
-                {currentPlan.priceMonthly} / mês · Sem fidelidade
+                {currentPlan.priceMonthly} {t.plan.perMonth} · {isEn ? 'Cancel anytime' : 'Sem fidelidade'}
               </p>
             </div>
           </div>
 
           <div className="text-left sm:text-right">
-            <span className="text-[11px] text-[#FDBA74] block">Armazenamento disponível</span>
+            <span className="text-[11px] text-[#FDBA74] block">{t.storage.breakdown.available}</span>
             <span className="font-mono text-sm font-semibold text-white">
               {displayUsed} <span className="text-[#FDBA74] font-normal">/</span> {displayLimit}
             </span>
@@ -163,7 +171,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
             <div className="flex items-center justify-between text-xs">
               <span className="flex items-center gap-1.5 font-medium text-[#FDBA74]">
                 <HardDrive className="h-3.5 w-3.5 text-[#F97316]" />
-                <span>Armazenamento</span>
+                <span>{t.nav.storage}</span>
               </span>
               <span className="font-mono text-white font-semibold tabular-nums">
                 {displayPercent}%
@@ -182,8 +190,8 @@ export const PlanView: React.FC<PlanViewProps> = ({
               />
             </div>
             <div className="mt-2 flex items-center justify-between text-[11px] text-[#FDBA74]">
-              <span>{displayUsed} em uso</span>
-              <span>Limite: {currentPlan.labelLimit}</span>
+              <span>{displayUsed} {isEn ? 'in use' : 'em uso'}</span>
+              <span>{isEn ? 'Quota' : 'Limite'}: {currentPlan.labelLimit}</span>
             </div>
           </div>
 
@@ -192,7 +200,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
             <div className="flex items-center justify-between text-xs">
               <span className="flex items-center gap-1.5 font-medium text-[#FDBA74]">
                 <Scissors className="h-3.5 w-3.5 text-[#F97316]" />
-                <span>Vídeos / Mês</span>
+                <span>{isEn ? 'Videos / Month' : 'Vídeos / Mês'}</span>
               </span>
               <span className="font-mono text-white font-semibold tabular-nums">
                 {videoPercent}%
@@ -205,8 +213,8 @@ export const PlanView: React.FC<PlanViewProps> = ({
               />
             </div>
             <div className="mt-2 flex items-center justify-between text-[11px] text-[#FDBA74]">
-              <span>{videosCount} vídeos criados</span>
-              <span>Limite: {currentPlan.labelVideoLimit}</span>
+              <span>{videosCount} {isEn ? 'videos created' : 'vídeos criados'}</span>
+              <span>{isEn ? 'Limit' : 'Limite'}: {currentPlan.labelVideoLimit}</span>
             </div>
           </div>
 
@@ -215,7 +223,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
             <div className="flex items-center justify-between text-xs">
               <span className="flex items-center gap-1.5 font-medium text-[#FDBA74]">
                 <Share2 className="h-3.5 w-3.5 text-[#F97316]" />
-                <span>Contas sociais</span>
+                <span>{t.nav.contas}</span>
               </span>
               <span className="font-mono text-white font-semibold tabular-nums">
                 {connectedAccountsCount} / {currentPlan.maxSocialAccounts}
@@ -232,13 +240,17 @@ export const PlanView: React.FC<PlanViewProps> = ({
             <div className="mt-2 flex items-center justify-between text-[11px] text-[#FDBA74]">
               <span>
                 {currentPlan.maxSocialAccounts - connectedAccountsCount > 0
-                  ? `${currentPlan.maxSocialAccounts - connectedAccountsCount} vaga(s) livre(s)`
+                  ? isEn
+                    ? `${currentPlan.maxSocialAccounts - connectedAccountsCount} slot(s) free`
+                    : `${currentPlan.maxSocialAccounts - connectedAccountsCount} vaga(s) livre(s)`
+                  : isEn
+                  ? 'Limit reached'
                   : 'Limite atingido'}
               </span>
               <span>
                 {currentPlan.maxSocialAccounts === 1
-                  ? '1 conta social'
-                  : `Até ${currentPlan.maxSocialAccounts} contas`}
+                  ? isEn ? '1 social channel' : '1 conta social'
+                  : isEn ? `Up to ${currentPlan.maxSocialAccounts} channels` : `Até ${currentPlan.maxSocialAccounts} contas`}
               </span>
             </div>
           </div>
@@ -247,7 +259,9 @@ export const PlanView: React.FC<PlanViewProps> = ({
 
       {/* Plan Cards Comparison */}
       <div>
-        <h3 className="text-sm font-semibold text-white mb-4">Escolha o plano ideal para seu estúdio</h3>
+        <h3 className="text-sm font-semibold text-white mb-4">
+          {isEn ? 'Choose the ideal plan for your creator studio' : 'Escolha o plano ideal para seu estúdio'}
+        </h3>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           {planTiers.map((tier) => {
@@ -269,12 +283,12 @@ export const PlanView: React.FC<PlanViewProps> = ({
                 {/* Badges */}
                 {isCurrent && (
                   <div className="absolute -top-3 left-6 rounded-full bg-[#F97316] px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow">
-                    Plano Ativo
+                    {t.plan.currentPlanBadge}
                   </div>
                 )}
                 {!isCurrent && isPopular && (
                   <div className="absolute -top-3 right-6 rounded-full bg-gradient-to-r from-[#F97316] to-[#EA580C] px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow">
-                    Mais Popular
+                    {isEn ? 'Most Popular' : 'Mais Popular'}
                   </div>
                 )}
 
@@ -287,7 +301,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                     <span className="font-mono text-2xl sm:text-3xl font-bold text-white tabular-nums">
                       {plan.priceMonthly}
                     </span>
-                    <span className="text-xs text-[#FDBA74]">/ mês</span>
+                    <span className="text-xs text-[#FDBA74]">{t.plan.perMonth}</span>
                   </div>
 
                   {/* Plan Features */}
@@ -308,18 +322,18 @@ export const PlanView: React.FC<PlanViewProps> = ({
                       disabled
                       className="w-full rounded-xl bg-[#F97316]/20 border border-[#F97316]/40 py-2.5 text-center text-xs font-semibold text-[#F97316] cursor-default"
                     >
-                      Plano em uso
+                      {t.plan.currentPlanBtn}
                     </button>
                   ) : (
                     <button
                       onClick={() => handleSelectPlan(tier)}
-                      className={`flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition active:scale-[0.98] ${
+                      className={`flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition active:scale-[0.98] cursor-pointer ${
                         tier === 'premium' || tier === 'pro'
                           ? 'bg-[#F97316] text-white shadow-lg shadow-[#F97316]/25 hover:bg-[#EA580C]'
                           : 'border border-[#27272A] bg-[#0A0A0A] text-white hover:border-[#F97316]/40 hover:bg-[#151515]'
                       }`}
                     >
-                      <span>Fazer upgrade</span>
+                      <span>{isEn ? 'Upgrade to this plan' : 'Fazer upgrade'}</span>
                       <ArrowRight className="h-4 w-4" />
                     </button>
                   )}

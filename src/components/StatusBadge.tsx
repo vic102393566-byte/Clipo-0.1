@@ -9,40 +9,42 @@ import {
   XCircle
 } from 'lucide-react';
 import { PublicationStatus, SocialPlatform } from '../types';
+import { useI18n } from '../i18n/I18nContext';
 
-export const getStatusDisplay = (status: PublicationStatus) => {
+export const getStatusConfig = (status: PublicationStatus, language: 'pt-BR' | 'en-US' = 'pt-BR') => {
+  const isEn = language === 'en-US';
   switch (status) {
     case 'agendado':
       return {
-        label: 'Agendado',
+        label: isEn ? 'Scheduled' : 'Agendado',
         colorClass: 'text-[#F97316] bg-[#F97316]/15 border-[#F97316]/30',
         dotClass: 'bg-[#F97316]',
         icon: Clock,
       };
     case 'processando':
       return {
-        label: 'Processando',
+        label: isEn ? 'Processing' : 'Processando',
         colorClass: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
         dotClass: 'bg-amber-400 animate-pulse',
         icon: Loader2,
       };
     case 'publicado':
       return {
-        label: 'Publicado',
+        label: isEn ? 'Published' : 'Publicado',
         colorClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
         dotClass: 'bg-emerald-400',
         icon: CheckCircle2,
       };
     case 'falhou':
       return {
-        label: 'Falhou',
+        label: isEn ? 'Failed' : 'Falhou',
         colorClass: 'text-rose-400 bg-rose-500/10 border-rose-500/30',
         dotClass: 'bg-rose-500',
         icon: XCircle,
       };
     default:
       return {
-        label: 'Agendado',
+        label: isEn ? 'Scheduled' : 'Agendado',
         colorClass: 'text-slate-400 bg-white/[0.05] border-white/[0.1]',
         dotClass: 'bg-slate-400',
         icon: Clock,
@@ -50,11 +52,14 @@ export const getStatusDisplay = (status: PublicationStatus) => {
   }
 };
 
+export const getStatusDisplay = (status: PublicationStatus) => getStatusConfig(status, 'pt-BR');
+
 export const StatusBadge: React.FC<{ status: PublicationStatus; showIcon?: boolean }> = ({
   status,
   showIcon = true,
 }) => {
-  const conf = getStatusDisplay(status);
+  const { language } = useI18n();
+  const conf = getStatusConfig(status, language);
   const Icon = conf.icon;
 
   return (

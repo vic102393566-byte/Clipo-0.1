@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Play, Clock, Share2, Sparkles, CheckCircle2, Calendar } from 'lucide-react';
 import { ScheduledPublication } from '../types';
 import { StatusBadge } from './StatusBadge';
+import { useI18n } from '../i18n/I18nContext';
 
 interface VideoPreviewModalProps {
   publication: ScheduledPublication | null;
@@ -14,6 +15,9 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
   onClose,
   onPublishNow,
 }) => {
+  const { t, language } = useI18n();
+  const isEn = language === 'en-US';
+
   if (!publication) return null;
 
   return (
@@ -26,12 +30,16 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
       <div className="relative w-full max-w-2xl rounded-2xl border border-[#27272A] bg-[#151515] p-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-[#27272A] pb-4">
           <div>
-            <h2 className="text-base font-semibold text-white">Pré-visualização do vídeo</h2>
-            <p className="text-xs text-[#FDBA74]">Verifique os canais e o formato antes do disparo</p>
+            <h2 className="text-base font-semibold text-white">
+              {isEn ? 'Video Preview' : 'Pré-visualização do vídeo'}
+            </h2>
+            <p className="text-xs text-[#FDBA74]">
+              {isEn ? 'Review channels, layout, and copy prior to scheduled dispatch' : 'Verifique os canais e o formato antes do disparo'}
+            </p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#0A0A0A] hover:text-white transition"
+            className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#0A0A0A] hover:text-white transition cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -70,21 +78,21 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
               <div>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-medium uppercase tracking-wider text-[#FDBA74]">
-                    Título
+                    {isEn ? 'Title' : 'Título'}
                   </span>
                   <StatusBadge status={publication.status} />
                 </div>
                 <h3 className="mt-1 text-sm font-semibold text-white">{publication.title}</h3>
                 {publication.errorMessage && (
                   <p className="mt-1 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded-lg">
-                    Erro no envio: {publication.errorMessage}
+                    {isEn ? 'Dispatch error:' : 'Erro no envio:'} {publication.errorMessage}
                   </p>
                 )}
               </div>
 
               <div>
                 <span className="text-[11px] font-medium uppercase tracking-wider text-[#FDBA74]">
-                  Legenda programada
+                  {isEn ? 'Scheduled Caption' : 'Legenda programada'}
                 </span>
                 <p className="mt-1 text-xs text-white leading-relaxed bg-[#0A0A0A] p-3 rounded-xl border border-[#27272A]">
                   {publication.description}
@@ -93,7 +101,7 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
 
               <div>
                 <span className="text-[11px] font-medium uppercase tracking-wider text-[#FDBA74]">
-                  Canais de destino
+                  {isEn ? 'Target Channels' : 'Canais de destino'}
                 </span>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {publication.platforms.map((p) => (
@@ -110,11 +118,13 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
 
               <div>
                 <span className="text-[11px] font-medium uppercase tracking-wider text-[#FDBA74]">
-                  Horário de postagem
+                  {isEn ? 'Publishing Schedule' : 'Horário de postagem'}
                 </span>
                 <div className="mt-1.5 flex items-center gap-2 text-xs font-mono text-white tabular-nums">
                   <Clock className="h-4 w-4 text-[#F97316]" />
-                  <span>{publication.scheduledDateLabel}, às {publication.scheduledTime} (Horário de Brasília)</span>
+                  <span>
+                    {publication.scheduledDateLabel}, {isEn ? 'at' : 'às'} {publication.scheduledTime}
+                  </span>
                 </div>
               </div>
             </div>
@@ -126,15 +136,15 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
                   onPublishNow(publication.id);
                   onClose();
                 }}
-                className="flex-1 rounded-xl bg-[#F97316] px-4 py-2 text-xs font-semibold text-white shadow-md shadow-[#F97316]/30 hover:bg-[#EA580C] transition"
+                className="flex-1 rounded-xl bg-[#F97316] px-4 py-2 text-xs font-semibold text-white shadow-md shadow-[#F97316]/30 hover:bg-[#EA580C] transition cursor-pointer"
               >
-                Publicar agora
+                {isEn ? 'Publish Now' : 'Publicar agora'}
               </button>
               <button
                 onClick={onClose}
-                className="rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2 text-xs font-medium text-[#FDBA74] hover:text-white transition"
+                className="rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2 text-xs font-medium text-[#FDBA74] hover:text-white transition cursor-pointer"
               >
-                Fechar
+                {t.common.close}
               </button>
             </div>
           </div>

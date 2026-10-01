@@ -25,6 +25,7 @@ import { VideoItem } from '../types';
 import { currentStorageProvider } from '../services/storageService';
 import { authService, DEFAULT_DEMO_USER } from '../services/authService';
 import { isSupabaseConfigured, uploadVideoToSupabaseStorage } from '../services/supabaseClient';
+import { useI18n } from '../i18n/I18nContext';
 
 interface UploadProgressModalProps {
   file: File | null;
@@ -45,6 +46,9 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
   onScheduleVideo,
   onNavigateVideos,
 }) => {
+  const { t, language } = useI18n();
+  const isEn = language === 'en-US';
+
   const [internalFile, setInternalFile] = useState<File | null>(file);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'error'>(
@@ -395,25 +399,25 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
             <div>
               <h2 className="text-base font-semibold text-white">
                 {status === 'completed'
-                  ? 'Vídeo pronto · Próximas etapas'
+                  ? (isEn ? 'Video Ready · Next Steps' : 'Vídeo pronto · Próximas etapas')
                   : status === 'error'
-                  ? 'Falha no upload do vídeo'
+                  ? (isEn ? 'Upload Failed' : 'Falha no upload do vídeo')
                   : status === 'processing'
-                  ? 'Processando vídeo · Otimização e IA'
+                  ? (isEn ? 'Processing Video · Optimization & AI' : 'Processando vídeo · Otimização e IA')
                   : status === 'uploading'
-                  ? 'Enviando vídeo para o Clipo'
-                  : 'Upload de vídeo · Clipo'}
+                  ? (isEn ? 'Uploading Video to Clipo' : 'Enviando vídeo para o Clipo')
+                  : (isEn ? 'Video Upload · Clipo' : 'Upload de vídeo · Clipo')}
               </h2>
               <p className="text-xs text-[#FDBA74]">
                 {status === 'completed'
-                  ? 'Escolha as ferramentas para preparar e agendar seu conteúdo'
+                  ? (isEn ? 'Choose workflow tools to prepare and schedule your content' : 'Escolha as ferramentas para preparar e agendar seu conteúdo')
                   : status === 'error'
-                  ? 'Ocorreu um erro no processamento do arquivo. Tente novamente.'
+                  ? (isEn ? 'An error occurred during file processing. Please try again.' : 'Ocorreu um erro no processamento do arquivo. Tente novamente.')
                   : status === 'processing'
-                  ? 'Extraindo metadados e validando com FFprobe'
+                  ? (isEn ? 'Extracting metadata and validating stream with FFprobe' : 'Extraindo metadados e validando com FFprobe')
                   : status === 'uploading'
-                  ? 'Aguarde o processamento e a otimização do arquivo'
-                  : 'Selecione ou arraste seu vídeo para iniciar o fluxo inteligente'}
+                  ? (isEn ? 'Please wait while file is uploaded and optimized' : 'Aguarde o processamento e a otimização do arquivo')
+                  : (isEn ? 'Select or drag your video file to start automated processing' : 'Selecione ou arraste seu vídeo para iniciar o fluxo inteligente')}
               </p>
             </div>
           </div>
@@ -421,7 +425,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#0A0A0A] hover:text-white transition"
-            aria-label="Fechar modal"
+            aria-label={t.common.close}
           >
             <X className="h-5 w-5" />
           </button>
@@ -447,15 +451,15 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                 <UploadCloud className="h-6 w-6" />
               </div>
               <h3 className="text-sm font-bold text-white">
-                Arraste seu arquivo de vídeo aqui
+                {isEn ? 'Drag your video file here' : 'Arraste seu arquivo de vídeo aqui'}
               </h3>
               <p className="mt-1 text-xs text-[#FDBA74]">
-                Formatos aceitos: MP4, MOV ou WebM · Plano Pro: vídeos longos de até 2 horas (podcasts, lives e aulas)
+                {isEn ? 'Supported formats: MP4, MOV or WebM · Pro: long videos up to 2 hours (podcasts, lives and classes)' : 'Formatos aceitos: MP4, MOV ou WebM · Plano Pro: vídeos longos de até 2 horas (podcasts, lives e aulas)'}
               </p>
 
               <label className="mt-4 inline-flex items-center gap-2 cursor-pointer rounded-xl bg-[#F97316] px-4 py-2 text-xs font-semibold text-white shadow-md shadow-[#F97316]/30 hover:bg-[#EA580C] transition active:scale-[0.98]">
                 <FileVideo className="h-4 w-4" />
-                <span>Selecionar do dispositivo</span>
+                <span>{isEn ? 'Select from device' : 'Selecionar do dispositivo'}</span>
                 <input
                   type="file"
                   accept="video/mp4,video/quicktime,video/webm"
@@ -471,18 +475,18 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                   <Sparkles className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-white">Sem vídeo no momento?</p>
+                  <p className="text-xs font-semibold text-white">{isEn ? 'No video right now?' : 'Sem vídeo no momento?'}</p>
                   <p className="text-[11px] text-[#FDBA74] truncate">
-                    Teste o fluxo completo com um vídeo demonstrativo 9:16
+                    {isEn ? 'Test the full workflow with a 9:16 demo sample' : 'Teste o fluxo completo com um vídeo demonstrativo 9:16'}
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={handleUseDemoVideo}
-                className="shrink-0 rounded-lg border border-[#F97316]/40 bg-[#F97316]/10 px-3 py-1.5 text-xs font-semibold text-[#F97316] hover:bg-[#F97316]/20 transition whitespace-nowrap"
+                className="shrink-0 rounded-lg border border-[#F97316]/40 bg-[#F97316]/10 px-3 py-1.5 text-xs font-semibold text-[#F97316] hover:bg-[#F97316]/20 transition whitespace-nowrap cursor-pointer"
               >
-                Usar vídeo demo
+                {isEn ? 'Use demo video' : 'Usar vídeo demo'}
               </button>
             </div>
           </div>
@@ -515,17 +519,17 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                 {status === 'completed' ? (
                   <span className="flex items-center gap-1 text-xs font-semibold text-emerald-400">
                     <CheckCircle2 className="h-4 w-4" />
-                    Pronto
+                    {isEn ? 'Ready' : 'Pronto'}
                   </span>
                 ) : status === 'error' ? (
                   <span className="flex items-center gap-1 text-xs font-semibold text-rose-400">
                     <AlertCircle className="h-4 w-4" />
-                    Falha
+                    {isEn ? 'Failed' : 'Falha'}
                   </span>
                 ) : status === 'processing' ? (
                   <span className="flex items-center gap-1 text-xs font-medium text-amber-400">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Processando
+                    {isEn ? 'Processing' : 'Processando'}
                   </span>
                 ) : (
                   <span className="font-mono text-xs font-bold text-[#F97316] tabular-nums">
@@ -553,13 +557,13 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
               {/* Transferred size indicator & status note */}
               <div className="flex items-center justify-between text-[11px] text-[#FDBA74] font-mono tabular-nums">
                 <span>
-                  {formatFileSize(uploadedBytes)} de {formatFileSize(internalFile.size)}
+                  {formatFileSize(uploadedBytes)} {isEn ? 'of' : 'de'} {formatFileSize(internalFile.size)}
                 </span>
                 <span>
-                  {status === 'uploading' && 'Transferindo dados...'}
-                  {status === 'processing' && 'Validando vídeo com FFprobe...'}
-                  {status === 'completed' && '100% concluído'}
-                  {status === 'error' && 'Falha no upload do arquivo'}
+                  {status === 'uploading' && (isEn ? 'Uploading media data...' : 'Transferindo dados...')}
+                  {status === 'processing' && (isEn ? 'Analyzing stream with FFprobe...' : 'Validando vídeo com FFprobe...')}
+                  {status === 'completed' && (isEn ? '100% complete' : '100% concluído')}
+                  {status === 'error' && (isEn ? 'File upload failed' : 'Falha no upload do arquivo')}
                 </span>
               </div>
             </div>
@@ -572,9 +576,9 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <h4 className="text-xs font-bold text-rose-300">Falha no upload</h4>
+                <h4 className="text-xs font-bold text-rose-300">{isEn ? 'Upload Failed' : 'Falha no upload'}</h4>
                 <p className="mt-1 text-xs text-rose-200/90 leading-relaxed">
-                  {errorMessage || 'Ocorreu um erro ao enviar e processar o vídeo.'}
+                  {errorMessage || (isEn ? 'An error occurred during video upload and processing.' : 'Ocorreu um erro ao enviar e processar o vídeo.')}
                 </p>
               </div>
             </div>
@@ -586,7 +590,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                 className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow hover:bg-rose-500 transition active:scale-[0.98] cursor-pointer"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span>Falha no upload — Tentar novamente</span>
+                <span>{isEn ? 'Upload failed — Try again' : 'Falha no upload — Tentar novamente'}</span>
               </button>
 
               <button
@@ -599,13 +603,13 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                 }}
                 className="rounded-lg border border-[#27272A] bg-[#0A0A0A] px-3 py-1.5 text-xs text-[#FDBA74] hover:text-white transition cursor-pointer"
               >
-                Escolher outro arquivo
+                {isEn ? 'Choose another file' : 'Escolher outro arquivo'}
               </button>
             </div>
           </div>
         )}
 
-        {/* 5. FUNÇÕES APRESENTADAS APÓS O UPLOAD (Requirement 5) */}
+        {/* 5. FUNÇÕES APRESENTADAS APÓS O UPLOAD */}
         {status === 'completed' && createdVideo && (
           <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
             {/* Feature 1: Corte Automático 9:16 */}
@@ -616,7 +620,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-xs font-semibold text-white">
-                    Corte automático 9:16
+                    {isEn ? '9:16 Vertical Trim & Split' : 'Corte automático 9:16'}
                   </h3>
                 </div>
               </div>
@@ -629,10 +633,10 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                     onClose();
                     onOpenSplit(vid);
                   }}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#F97316]/40 bg-[#F97316]/10 px-3 py-1.5 text-xs font-semibold text-[#F97316] hover:bg-[#F97316]/20 transition active:scale-[0.98] whitespace-nowrap"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#F97316]/40 bg-[#F97316]/10 px-3 py-1.5 text-xs font-semibold text-[#F97316] hover:bg-[#F97316]/20 transition active:scale-[0.98] whitespace-nowrap cursor-pointer"
                 >
                   <Scissors className="h-3.5 w-3.5" />
-                  <span>Dividir em cortes</span>
+                  <span>{isEn ? 'Split into clips' : 'Dividir em cortes'}</span>
                 </button>
               )}
             </div>
@@ -645,7 +649,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-xs font-semibold text-white">
-                    Legendas automáticas
+                    {isEn ? 'Dynamic Auto Captions' : 'Legendas automáticas'}
                   </h3>
                 </div>
               </div>
@@ -653,10 +657,10 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
               <button
                 type="button"
                 onClick={() => setAutoCaptions(!autoCaptions)}
-                className={`h-5 w-9 shrink-0 rounded-full p-0.5 transition ${
+                className={`h-5 w-9 shrink-0 rounded-full p-0.5 transition cursor-pointer ${
                   autoCaptions ? 'bg-[#F97316]' : 'bg-[#27272A]'
                 }`}
-                title="Ativar/desativar legendas"
+                title={isEn ? 'Toggle captions' : 'Ativar/desativar legendas'}
               >
                 <div
                   className={`h-4 w-4 rounded-full bg-white transition-transform ${
@@ -675,7 +679,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                   </div>
                   <div>
                     <h3 className="text-xs font-semibold text-white">
-                      Título, descrição & hashtags com IA
+                      {isEn ? 'AI Title, Description & Hashtags' : 'Título, descrição & hashtags com IA'}
                     </h3>
                   </div>
                 </div>
@@ -683,17 +687,17 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyMetadata}
-                  className="flex items-center gap-1 rounded-md border border-[#27272A] bg-[#151515] px-2 py-1 text-[11px] font-medium text-[#FDBA74] hover:text-white transition"
+                  className="flex items-center gap-1 rounded-md border border-[#27272A] bg-[#151515] px-2 py-1 text-[11px] font-medium text-[#FDBA74] hover:text-white transition cursor-pointer"
                 >
                   {isCopied ? (
                     <>
                       <Check className="h-3 w-3 text-emerald-400" />
-                      <span className="text-emerald-400">Copiado!</span>
+                      <span className="text-emerald-400">{t.common.copied}</span>
                     </>
                   ) : (
                     <>
                       <Copy className="h-3 w-3" />
-                      <span>Copiar sugestão</span>
+                      <span>{isEn ? 'Copy smart copy' : 'Copiar sugestão'}</span>
                     </>
                   )}
                 </button>
@@ -702,19 +706,19 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
               <div className="rounded-lg bg-[#151515] p-2.5 text-[11px] space-y-1.5 border border-[#27272A]">
                 <div>
                   <span className="text-[#FDBA74]/70 font-semibold uppercase text-[9px] block">
-                    Sugestão de título:
+                    {isEn ? 'Suggested Title:' : 'Sugestão de título:'}
                   </span>
                   <p className="font-semibold text-white">{generatedTitle}</p>
                 </div>
                 <div>
                   <span className="text-[#FDBA74]/70 font-semibold uppercase text-[9px] block">
-                    Descrição & chamada:
+                    {isEn ? 'Description & Hook:' : 'Descrição & chamada:'}
                   </span>
                   <p className="text-[#FDBA74]">{generatedDescription}</p>
                 </div>
                 <div>
                   <span className="text-[#FDBA74]/70 font-semibold uppercase text-[9px] block">
-                    Hashtags virais recomendadas:
+                    {isEn ? 'Trending Viral Hashtags:' : 'Hashtags virais recomendadas:'}
                   </span>
                   <p className="font-mono text-[#F97316] font-medium">{generatedHashtags}</p>
                 </div>
@@ -729,10 +733,10 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-xs font-semibold text-white">
-                    Preparação & agendamento nos canais
+                    {isEn ? 'Channel Publishing & Schedule' : 'Preparação & agendamento nos canais'}
                   </h3>
                   <p className="text-[11px] text-[#FDBA74]">
-                    Distribuir no TikTok, Instagram Reels e YouTube Shorts
+                    {isEn ? 'Distribute to TikTok, Instagram Reels and YouTube Shorts' : 'Distribuir no TikTok, Instagram Reels e YouTube Shorts'}
                   </p>
                 </div>
               </div>
@@ -745,10 +749,10 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                     onClose();
                     onScheduleVideo(vid);
                   }}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#F97316] px-3.5 py-1.5 text-xs font-bold text-white shadow-md shadow-[#F97316]/30 hover:bg-[#EA580C] transition active:scale-[0.98] whitespace-nowrap"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#F97316] px-3.5 py-1.5 text-xs font-bold text-white shadow-md shadow-[#F97316]/30 hover:bg-[#EA580C] transition active:scale-[0.98] whitespace-nowrap cursor-pointer"
                 >
                   <Calendar className="h-3.5 w-3.5" />
-                  <span>Agendar agora</span>
+                  <span>{isEn ? 'Schedule now' : 'Agendar agora'}</span>
                 </button>
               )}
             </div>
@@ -764,7 +768,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                 onClick={onClose}
                 className="rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2 text-xs font-medium text-[#FDBA74] hover:text-white transition cursor-pointer"
               >
-                Fechar
+                {t.common.close}
               </button>
               <button
                 type="button"
@@ -772,7 +776,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                 className="inline-flex items-center gap-1.5 rounded-xl bg-[#F97316] px-4 py-2 text-xs font-bold text-white shadow-md shadow-[#F97316]/30 hover:bg-[#EA580C] transition active:scale-[0.98] cursor-pointer"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span>Falha no upload — Tentar novamente</span>
+                <span>{isEn ? 'Upload failed — Try again' : 'Falha no upload — Tentar novamente'}</span>
               </button>
             </>
           ) : status !== 'completed' ? (
@@ -787,7 +791,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
               }}
               className="rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2 text-xs font-medium text-[#FDBA74] hover:text-white transition cursor-pointer"
             >
-              Cancelar upload
+              {isEn ? 'Cancel upload' : 'Cancelar upload'}
             </button>
           ) : (
             <button
@@ -795,7 +799,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
               onClick={handleFinishAndNavigate}
               className="flex items-center gap-2 rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2 text-xs font-semibold text-white hover:border-[#F97316] hover:bg-[#151515] transition active:scale-[0.98] cursor-pointer"
             >
-              <span>Concluir e ver em Meus Vídeos</span>
+              <span>{isEn ? 'Finish and View in My Videos' : 'Concluir e ver em Meus Vídeos'}</span>
               <ArrowRight className="h-4 w-4 text-[#F97316]" />
             </button>
           )}

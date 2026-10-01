@@ -13,6 +13,7 @@ import {
   Info
 } from 'lucide-react';
 import { PlanConfig, PlanTier } from '../types';
+import { useI18n } from '../i18n/I18nContext';
 
 interface SubscriptionCheckoutModalProps {
   isOpen: boolean;
@@ -29,6 +30,9 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
   currentPlanId,
   onConfirmPayment,
 }) => {
+  const { t, language } = useI18n();
+  const isEn = language === 'en-US';
+
   const [paymentMethod, setPaymentMethod] = useState<'cartao' | 'pix' | 'boleto'>('cartao');
   const [isProcessing, setIsProcessing] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'mensal' | 'anual'>('mensal');
@@ -60,9 +64,15 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Confirmação de Assinatura</h3>
+              <h3 className="text-sm font-bold text-white">
+                {isEn ? 'Subscription Confirmation' : 'Confirmação de Assinatura'}
+              </h3>
               <p className="text-[11px] text-[#FDBA74]">
-                {isUpgrade ? 'Upgrade de plano imediato' : isDowngrade ? 'Alteração de plano' : 'Assinatura do plano selecionado'}
+                {isUpgrade
+                  ? (isEn ? 'Immediate plan upgrade' : 'Upgrade de plano imediato')
+                  : isDowngrade
+                  ? (isEn ? 'Plan change' : 'Alteração de plano')
+                  : (isEn ? 'Subscription to selected tier' : 'Assinatura do plano selecionado')}
               </p>
             </div>
           </div>
@@ -70,7 +80,7 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
           <button
             onClick={onClose}
             disabled={isProcessing}
-            className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#151515] hover:text-white transition"
+            className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#151515] hover:text-white transition cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -83,15 +93,17 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-semibold text-[#F97316] uppercase tracking-wider">
-                  Plano Selecionado
+                  {isEn ? 'Selected Plan' : 'Plano Selecionado'}
                 </span>
-                <h4 className="text-lg font-extrabold text-white mt-0.5">Plano {selectedPlan.name}</h4>
+                <h4 className="text-lg font-extrabold text-white mt-0.5">{selectedPlan.name}</h4>
               </div>
               <div className="text-right">
                 <span className="font-mono text-xl font-bold text-white tabular-nums">
                   {selectedPlan.priceMonthly}
                 </span>
-                <span className="text-xs text-[#FDBA74] block">/ mês</span>
+                <span className="text-xs text-[#FDBA74] block">
+                  {isEn ? '/ mo' : '/ mês'}
+                </span>
               </div>
             </div>
 
@@ -109,26 +121,26 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
           {/* Payment Method Selector */}
           <div>
             <label className="text-xs font-semibold text-white block mb-2">
-              Forma de pagamento para assinatura:
+              {isEn ? 'Payment method for subscription:' : 'Forma de pagamento para assinatura:'}
             </label>
             <div className="grid grid-cols-3 gap-2.5">
               <button
                 type="button"
                 onClick={() => setPaymentMethod('cartao')}
-                className={`flex flex-col items-center justify-center rounded-xl border p-3 text-xs font-medium transition ${
+                className={`flex flex-col items-center justify-center rounded-xl border p-3 text-xs font-medium transition cursor-pointer ${
                   paymentMethod === 'cartao'
                     ? 'border-[#F97316] bg-[#F97316]/15 text-white ring-1 ring-[#F97316]'
                     : 'border-[#27272A] bg-[#0A0A0A] text-[#FDBA74] hover:bg-[#151515] hover:text-white'
                 }`}
               >
                 <CreditCard className="h-4 w-4 mb-1 text-[#F97316]" />
-                <span>Cartão</span>
+                <span>{isEn ? 'Credit Card' : 'Cartão'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPaymentMethod('pix')}
-                className={`flex flex-col items-center justify-center rounded-xl border p-3 text-xs font-medium transition ${
+                className={`flex flex-col items-center justify-center rounded-xl border p-3 text-xs font-medium transition cursor-pointer ${
                   paymentMethod === 'pix'
                     ? 'border-[#F97316] bg-[#F97316]/15 text-white ring-1 ring-[#F97316]'
                     : 'border-[#27272A] bg-[#0A0A0A] text-[#FDBA74] hover:bg-[#151515] hover:text-white'
@@ -141,59 +153,58 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
               <button
                 type="button"
                 onClick={() => setPaymentMethod('boleto')}
-                className={`flex flex-col items-center justify-center rounded-xl border p-3 text-xs font-medium transition ${
+                className={`flex flex-col items-center justify-center rounded-xl border p-3 text-xs font-medium transition cursor-pointer ${
                   paymentMethod === 'boleto'
                     ? 'border-[#F97316] bg-[#F97316]/15 text-white ring-1 ring-[#F97316]'
                     : 'border-[#27272A] bg-[#0A0A0A] text-[#FDBA74] hover:bg-[#151515] hover:text-white'
                 }`}
               >
                 <FileText className="h-4 w-4 mb-1 text-[#F97316]" />
-                <span>Boleto</span>
+                <span>{isEn ? 'Invoice / Bank Slip' : 'Boleto'}</span>
               </button>
             </div>
           </div>
 
-          {/* Payment Notice / Security reassurance */}
-          <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-3 text-[11px] text-[#FDBA74] flex items-start gap-2.5">
-            <Lock className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-semibold text-white">Estrutura de pagamento pronta:</span>
-              <p className="mt-0.5">
-                Nenhum valor real será debitado do seu cartão no momento. Ao clicar em <strong>"Confirmar e Ativar Plano"</strong>, o webhook de confirmação é processado e sua assinatura passa para status <strong>Ativa</strong> com os novos limites imediatos.
-              </p>
-            </div>
+          {/* Secure Notice */}
+          <div className="flex items-center gap-2 rounded-xl bg-[#0A0A0A] border border-[#27272A] p-3 text-xs text-[#FDBA74]">
+            <ShieldCheck className="h-4 w-4 text-[#F97316] shrink-0" />
+            <span>
+              {isEn
+                ? 'Secured with 256-bit SSL encryption. Cancel or modify anytime.'
+                : 'Segurança garantida com criptografia SSL 256-bit. Cancele quando quiser.'}
+            </span>
           </div>
-        </div>
 
-        {/* Modal Action Buttons */}
-        <div className="flex items-center justify-end gap-3 border-t border-[#27272A] bg-[#0A0A0A] px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isProcessing}
-            className="rounded-xl border border-[#27272A] bg-[#151515] px-4 py-2 text-xs font-medium text-[#FDBA74] hover:text-white transition disabled:opacity-50"
-          >
-            Cancelar
-          </button>
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#27272A]">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isProcessing}
+              className="rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2 text-xs font-medium text-[#FDBA74] hover:text-white transition cursor-pointer"
+            >
+              {t.common.cancel}
+            </button>
 
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={isProcessing}
-            className="flex items-center gap-2 rounded-xl bg-[#F97316] px-5 py-2 text-xs font-bold text-white shadow-lg shadow-[#F97316]/30 hover:bg-[#EA580C] transition active:scale-[0.98] disabled:opacity-50"
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Processando ativação...</span>
-              </>
-            ) : (
-              <>
-                <span>Confirmar e Ativar Plano</span>
-                <ArrowRight className="h-4 w-4" />
-              </>
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={isProcessing}
+              className="flex items-center gap-2 rounded-xl bg-[#F97316] px-5 py-2 text-xs font-semibold text-white shadow-md shadow-[#F97316]/30 hover:bg-[#EA580C] transition active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>{isEn ? 'Activating plan...' : 'Ativando plano...'}</span>
+                </>
+              ) : (
+                <>
+                  <span>{isEn ? 'Confirm & Activate Plan' : 'Confirmar e ativar plano'}</span>
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

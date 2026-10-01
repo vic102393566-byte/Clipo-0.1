@@ -18,19 +18,13 @@ import {
 import { VideoItem } from '../types';
 import { formatDuration, formatFileSize, parseDurationToSeconds } from '../utils/videoUtils';
 import { authService, DEFAULT_DEMO_USER } from '../services/authService';
+import { useI18n } from '../i18n/I18nContext';
 
 export interface SplitOption {
   id: '30s' | '1m' | '3m' | '5m' | 'custom';
   label: string;
   seconds: number;
 }
-
-const PRESET_OPTIONS: { id: '30s' | '1m' | '3m' | '5m'; label: string; seconds: number }[] = [
-  { id: '30s', label: '30 segundos', seconds: 30 },
-  { id: '1m', label: '1 minuto', seconds: 60 },
-  { id: '3m', label: '3 minutos', seconds: 180 },
-  { id: '5m', label: '5 minutos', seconds: 300 },
-];
 
 interface SplitVideoModalProps {
   video: VideoItem | null;
@@ -45,6 +39,16 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
   onClose,
   onSplitComplete,
 }) => {
+  const { t, language } = useI18n();
+  const isEn = language === 'en-US';
+
+  const presetOptions = [
+    { id: '30s' as const, label: isEn ? '30 seconds' : '30 segundos', seconds: 30 },
+    { id: '1m' as const, label: isEn ? '1 minute' : '1 minuto', seconds: 60 },
+    { id: '3m' as const, label: isEn ? '3 minutes' : '3 minutos', seconds: 180 },
+    { id: '5m' as const, label: isEn ? '5 minutes' : '5 minutos', seconds: 300 },
+  ];
+
   const [selectedOption, setSelectedOption] = useState<'30s' | '1m' | '3m' | '5m' | 'custom'>('1m');
   const [customMinutes, setCustomMinutes] = useState<number>(2);
   const [customSeconds, setCustomSeconds] = useState<number>(0);
@@ -300,9 +304,11 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
               <Scissors className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-white">Dividir vídeo com IA</h2>
+              <h2 className="text-base font-semibold text-white">
+                {isEn ? 'Split Video with AI' : 'Dividir vídeo com IA'}
+              </h2>
               <p className="text-xs text-[#FDBA74]">
-                Corte automático real com renderização via motor FFmpeg
+                {isEn ? 'Automated vertical trim rendered via FFmpeg engine' : 'Corte automático real com renderização via motor FFmpeg'}
               </p>
             </div>
           </div>
@@ -310,7 +316,7 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
           <button
             onClick={handleCloseModal}
             className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#0A0A0A] hover:text-white transition cursor-pointer"
-            aria-label="Fechar"
+            aria-label={t.common.close}
           >
             <X className="h-5 w-5" />
           </button>
@@ -339,7 +345,9 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                 <span aria-hidden="true" className="text-[#FDBA74]/50">·</span>
                 <span>{video.fileSize}</span>
                 <span aria-hidden="true" className="text-[#FDBA74]/50">·</span>
-                <span className="text-emerald-400">Vídeo base selecionado</span>
+                <span className="text-emerald-400">
+                  {isEn ? 'Source video ready' : 'Vídeo base selecionado'}
+                </span>
               </div>
             </div>
           </div>
@@ -349,7 +357,9 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
             <div className="flex items-start gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-200">
               <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
               <div className="flex-1 leading-relaxed">
-                <p className="font-semibold text-rose-300">Falha no processamento</p>
+                <p className="font-semibold text-rose-300">
+                  {isEn ? 'Processing failed' : 'Falha no processamento'}
+                </p>
                 <p className="mt-0.5 text-rose-200/90">{errorMessage}</p>
                 <button
                   type="button"
@@ -357,7 +367,7 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                   className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-rose-600/30 px-3 py-1 font-semibold text-rose-100 hover:bg-rose-600/50 transition cursor-pointer"
                 >
                   <RotateCcw className="h-3 w-3" />
-                  <span>Tentar novamente</span>
+                  <span>{t.common.retry}</span>
                 </button>
               </div>
             </div>
@@ -369,7 +379,9 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5 text-xs font-semibold text-white">
                   <Loader2 className="h-4 w-4 animate-spin text-[#F97316]" />
-                  <span>Processando vídeo de verdade (FFmpeg)</span>
+                  <span>
+                    {isEn ? 'Rendering 9:16 cuts via FFmpeg engine...' : 'Processando vídeo de verdade (FFmpeg)'}
+                  </span>
                 </div>
                 <span className="font-mono text-sm font-bold text-[#F97316] tabular-nums">
                   {progressPercent}%
@@ -387,7 +399,7 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
               <div className="flex items-center justify-between text-xs text-[#FDBA74]">
                 <span className="font-mono text-white">{processingStatus}</span>
                 <span className="font-mono tabular-nums">
-                  Parte {currentPartProcessing} de {totalPartsCalculated}
+                  {isEn ? `Part ${currentPartProcessing} of ${totalPartsCalculated}` : `Parte ${currentPartProcessing} de ${totalPartsCalculated}`}
                 </span>
               </div>
 
@@ -397,20 +409,23 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                   onClick={handleCancelProcessing}
                   className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 hover:bg-rose-500/20 transition cursor-pointer"
                 >
-                  Cancelar processamento
+                  {isEn ? 'Cancel rendering' : 'Cancelar processamento'}
                 </button>
               </div>
             </div>
           )}
 
-          {/* VIEW: RESULTS & PREVIEW (REQUIREMENT 7: PERMITIR VISUALIZAR OS SEGMENTOS GERADOS) */}
+          {/* VIEW: RESULTS & PREVIEW */}
           {!isProcessing && completedParts.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-200">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
                   <span>
-                    <strong>{completedParts.length} cortes reais gerados!</strong> Cada parte é um arquivo independente pronto para publicação.
+                    <strong>
+                      {isEn ? `${completedParts.length} vertical clips generated!` : `${completedParts.length} cortes reais gerados!`}
+                    </strong>{' '}
+                    {isEn ? 'Each part is an independent 9:16 video ready for publishing.' : 'Cada parte é um arquivo independente pronto para publicação.'}
                   </span>
                 </div>
               </div>
@@ -420,7 +435,7 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                 {/* Segment List */}
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold text-white">
-                    Segmentos gerados ({completedParts.length}):
+                    {isEn ? `Generated clips (${completedParts.length}):` : `Segmentos gerados (${completedParts.length}):`}
                   </label>
                   <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
                     {completedParts.map((part, idx) => {
@@ -487,7 +502,9 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                     ) : (
                       <div className="flex flex-col items-center gap-2 text-[#71717A]">
                         <Film className="h-8 w-8 text-[#FDBA74]" />
-                        <span className="text-xs">Pré-visualização indisponível</span>
+                        <span className="text-xs">
+                          {isEn ? 'Preview unavailable' : 'Pré-visualização indisponível'}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -498,7 +515,7 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                         {currentPreviewPart.title}
                       </p>
                       <p className="text-[11px] font-mono text-[#FDBA74]">
-                        Duração: {currentPreviewPart.duration} · Tamanho: {currentPreviewPart.fileSize}
+                        {isEn ? `Duration: ${currentPreviewPart.duration} · Size: ${currentPreviewPart.fileSize}` : `Duração: ${currentPreviewPart.duration} · Tamanho: ${currentPreviewPart.fileSize}`}
                       </p>
                     </div>
                   )}
@@ -512,16 +529,16 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-white">
-                  Selecione a duração de cada corte:
+                  {isEn ? 'Select target duration for each clip:' : 'Selecione a duração de cada corte:'}
                 </label>
                 <p className="text-[11px] text-[#FDBA74] mt-0.5">
-                  O sistema dividirá o vídeo em arquivos reais de vídeo no servidor.
+                  {isEn ? 'The server renders clean vertical cuts optimized for Shorts, Reels & TikTok.' : 'O sistema dividirá o vídeo em arquivos reais de vídeo no servidor.'}
                 </p>
               </div>
 
               {/* Preset Options Grid */}
               <div className="grid grid-cols-2 gap-2.5">
-                {PRESET_OPTIONS.map((opt) => {
+                {presetOptions.map((opt) => {
                   const isSelected = selectedOption === opt.id;
                   return (
                     <button
@@ -550,7 +567,9 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-white">Duração personalizada</span>
+                  <span className="text-xs font-bold text-white">
+                    {isEn ? 'Custom duration' : 'Duração personalizada'}
+                  </span>
                 </div>
 
                 {selectedOption === 'custom' && (
@@ -564,7 +583,9 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                         onChange={(e) => setCustomMinutes(Math.max(0, parseInt(e.target.value, 10) || 0))}
                         className="w-16 rounded-lg border border-[#27272A] bg-[#151515] px-2 py-1 text-center font-mono text-xs text-white focus:border-[#F97316] focus:outline-none"
                       />
-                      <span className="text-xs text-[#FDBA74]">minutos</span>
+                      <span className="text-xs text-[#FDBA74]">
+                        {isEn ? 'minutes' : 'minutos'}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
@@ -576,7 +597,9 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                         onChange={(e) => setCustomSeconds(Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0)))}
                         className="w-16 rounded-lg border border-[#27272A] bg-[#151515] px-2 py-1 text-center font-mono text-xs text-white focus:border-[#F97316] focus:outline-none"
                       />
-                      <span className="text-xs text-[#FDBA74]">segundos</span>
+                      <span className="text-xs text-[#FDBA74]">
+                        {isEn ? 'seconds' : 'segundos'}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -591,7 +614,7 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
             <div className="flex items-center gap-3 w-full justify-between">
               <span className="text-xs text-[#FDBA74] flex items-center gap-1">
                 <HardDrive className="h-3.5 w-3.5 text-[#F97316]" />
-                {completedParts.length} arquivos salvos no storage
+                {isEn ? `${completedParts.length} files saved in cloud storage` : `${completedParts.length} arquivos salvos no storage`}
               </span>
 
               <button
@@ -600,7 +623,7 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                 className="flex items-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-[#F97316]/30 hover:bg-[#EA580C] transition cursor-pointer active:scale-[0.98]"
               >
                 <Check className="h-4 w-4" />
-                <span>Salvar vídeos na galeria</span>
+                <span>{isEn ? 'Save clips to gallery' : 'Salvar vídeos na galeria'}</span>
               </button>
             </div>
           ) : (
@@ -611,7 +634,7 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                 disabled={isProcessing}
                 className="rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2 text-xs font-medium text-[#FDBA74] hover:text-white transition disabled:opacity-50 cursor-pointer"
               >
-                Cancelar
+                {t.common.cancel}
               </button>
 
               <button
@@ -623,12 +646,12 @@ export const SplitVideoModal: React.FC<SplitVideoModalProps> = ({
                 {isProcessing ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Processando com FFmpeg...</span>
+                    <span>{isEn ? 'Processing with FFmpeg...' : 'Processando com FFmpeg...'}</span>
                   </>
                 ) : (
                   <>
                     <Scissors className="h-4 w-4" />
-                    <span>Iniciar corte automático</span>
+                    <span>{isEn ? 'Start Auto Trim' : 'Iniciar corte automático'}</span>
                   </>
                 )}
               </button>

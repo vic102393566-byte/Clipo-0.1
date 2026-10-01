@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Film, Upload, Search, Play, Eye, Trash2, Calendar } from 'lucide-react';
+import { Film, Upload, Search, Play, Eye, Trash2, Calendar, Scissors, Sparkles } from 'lucide-react';
 import { VideoItem } from '../../types';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
+import { useI18n } from '../../i18n/I18nContext';
 
 interface VideosViewProps {
   videos: VideoItem[];
@@ -32,6 +33,9 @@ export const VideosView: React.FC<VideosViewProps> = ({
   planName = 'Pro',
   limitFormatted = '50 GB',
 }) => {
+  const { t, language } = useI18n();
+  const isEn = language === 'en-US';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [videoPendingDelete, setVideoPendingDelete] = useState<VideoItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -56,7 +60,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
       {/* Header Bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-bold text-white">Meus vídeos</h2>
+          <h2 className="text-lg font-bold text-white">{t.videos.filterAll}</h2>
         </div>
 
         <div className="flex items-center gap-3">
@@ -64,18 +68,18 @@ export const VideosView: React.FC<VideosViewProps> = ({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#FDBA74]" />
             <input
               type="text"
-              placeholder="Filtrar vídeos..."
+              placeholder={t.videos.searchPlaceholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="rounded-xl border border-[#27272A] bg-[#151515] pl-9 pr-3 py-1.5 text-xs text-white placeholder-[#71717A] focus:border-[#F97316] focus:outline-none"
+              className="rounded-xl border border-[#27272A] bg-[#151515] pl-9 pr-3 py-1.5 text-xs text-white placeholder-[#71717A] focus:border-[#F97316] focus:outline-none w-56 sm:w-64"
             />
           </div>
           <button
             onClick={onOpenUpload}
-            className="flex items-center gap-2 rounded-xl bg-[#F97316] px-4 py-2 text-xs font-semibold text-white hover:bg-[#EA580C] transition shadow-md shadow-[#F97316]/25"
+            className="flex items-center gap-2 rounded-xl bg-[#F97316] px-4 py-2 text-xs font-semibold text-white hover:bg-[#EA580C] transition shadow-md shadow-[#F97316]/25 cursor-pointer whitespace-nowrap"
           >
             <Upload className="h-4 w-4" />
-            <span>Enviar vídeo</span>
+            <span>{t.videos.uploadNew}</span>
           </button>
         </div>
       </div>
@@ -84,17 +88,17 @@ export const VideosView: React.FC<VideosViewProps> = ({
       {isOverLimit && (
         <div className="flex items-center justify-between rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-200">
           <div>
-            <span className="font-semibold text-rose-100">Armazenamento esgotado ({limitFormatted}):</span>
+            <span className="font-semibold text-rose-100">{t.videos.storageWarning.title} ({limitFormatted}):</span>
             <span className="ml-1 text-rose-300">
-              Faça upgrade para o plano Pro ou Premium na aba "Meu plano" para continuar enviando vídeos ou dividindo partes.
+              {t.videos.storageWarning.desc}
             </span>
           </div>
           {onUpgradeClick && (
             <button
               onClick={onUpgradeClick}
-              className="ml-3 shrink-0 rounded-lg bg-[#F97316] px-3 py-1 font-semibold text-white hover:bg-[#EA580C] transition"
+              className="ml-3 shrink-0 rounded-lg bg-[#F97316] px-3 py-1 font-semibold text-white hover:bg-[#EA580C] transition cursor-pointer"
             >
-              Fazer upgrade
+              {t.videos.storageWarning.upgrade}
             </button>
           )}
         </div>
@@ -104,18 +108,20 @@ export const VideosView: React.FC<VideosViewProps> = ({
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-[#27272A] bg-[#151515] p-12 text-center">
           <Film className="mx-auto h-10 w-10 text-[#FDBA74] mb-3" />
-          <h3 className="text-sm font-semibold text-white">Nenhum vídeo encontrado</h3>
+          <h3 className="text-sm font-semibold text-white">
+            {searchTerm ? t.videos.noSearchResults : t.videos.emptyTitle}
+          </h3>
           <p className="mt-1 text-xs text-[#FDBA74] max-w-sm mx-auto">
             {searchTerm
-              ? 'Nenhum vídeo corresponde à busca. Tente outro termo.'
-              : 'Você ainda não enviou nenhum vídeo. Comece enviando seu primeiro arquivo MP4, MOV ou WebM.'}
+              ? t.videos.noSearchResultsDesc
+              : t.videos.emptyDesc}
           </p>
           <button
             onClick={onOpenUpload}
-            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-4 py-2 text-xs font-semibold text-white hover:bg-[#EA580C] transition"
+            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-4 py-2 text-xs font-semibold text-white hover:bg-[#EA580C] transition cursor-pointer"
           >
             <Upload className="h-4 w-4" />
-            <span>Enviar primeiro vídeo</span>
+            <span>{t.videos.uploadFirst}</span>
           </button>
         </div>
       ) : (
@@ -155,9 +161,9 @@ export const VideosView: React.FC<VideosViewProps> = ({
                     e.stopPropagation();
                     setVideoPendingDelete(video);
                   }}
-                  className="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg bg-black/70 text-rose-400 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-rose-600 hover:text-white transition shadow"
-                  title="Excluir vídeo"
-                  aria-label={`Excluir vídeo ${video.title}`}
+                  className="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg bg-black/70 text-rose-400 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-rose-600 hover:text-white transition shadow cursor-pointer"
+                  title={t.videos.actions.delete}
+                  aria-label={t.videos.actions.delete}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -167,13 +173,12 @@ export const VideosView: React.FC<VideosViewProps> = ({
               <div className="p-4">
                 <h3
                   onClick={() => onPreviewVideo(video)}
-                  className="cursor-pointer truncate text-sm font-semibold text-white group-hover:text-[#A78BFA] transition"
+                  className="cursor-pointer truncate text-sm font-semibold text-white group-hover:text-[#F97316] transition"
                   title={video.title}
                 >
                   {video.title}
                 </h3>
 
-                {/* Zero-Pill unboxed metadata */}
                 <div className="mt-2 flex items-center gap-1.5 text-xs text-[#FDBA74]">
                   <span>{video.uploadedAt}</span>
                   <span aria-hidden="true" className="text-zinc-600">·</span>
@@ -181,10 +186,10 @@ export const VideosView: React.FC<VideosViewProps> = ({
                     {video.fileSize}
                   </span>
                   <span aria-hidden="true" className="text-zinc-600">·</span>
-                  <span className="text-emerald-400">Pronto</span>
+                  <span className="text-emerald-400">{isEn ? 'Ready' : 'Pronto'}</span>
                 </div>
 
-                {/* Actions footer: Visualizar, Agendar & Excluir */}
+                {/* Actions footer */}
                 <div className="mt-4 flex items-center justify-between border-t border-[#27272A] pt-3 text-xs">
                   <div className="flex items-center gap-2">
                     <button
@@ -192,7 +197,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
                       className="flex items-center gap-1.5 font-medium text-white hover:text-[#F97316] transition cursor-pointer"
                     >
                       <Eye className="h-3.5 w-3.5 text-[#F97316]" />
-                      <span>Ver</span>
+                      <span>{t.videos.actions.preview}</span>
                     </button>
 
                     {onScheduleVideo && (
@@ -202,10 +207,10 @@ export const VideosView: React.FC<VideosViewProps> = ({
                           onScheduleVideo(video);
                         }}
                         className="flex items-center gap-1 font-medium text-emerald-400 hover:text-emerald-300 transition cursor-pointer"
-                        title="Agendar publicação deste vídeo"
+                        title={t.videos.actions.schedule}
                       >
                         <Calendar className="h-3 w-3" />
-                        <span>Agendar</span>
+                        <span>{t.videos.actions.schedule}</span>
                       </button>
                     )}
                   </div>
@@ -216,11 +221,10 @@ export const VideosView: React.FC<VideosViewProps> = ({
                       setVideoPendingDelete(video);
                     }}
                     className="flex items-center gap-1.5 font-medium text-rose-400 hover:text-rose-300 transition px-2.5 py-1 rounded-lg hover:bg-rose-500/15 cursor-pointer"
-                    title="Excluir vídeo"
-                    aria-label={`Excluir ${video.title}`}
+                    title={t.videos.actions.delete}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    <span>Excluir</span>
+                    <span>{t.common.delete}</span>
                   </button>
                 </div>
               </div>
@@ -229,7 +233,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
         </div>
       )}
 
-      {/* In-App Confirmation Modal (Does not depend on window.confirm) */}
+      {/* In-App Confirmation Modal */}
       <ConfirmDeleteModal
         isOpen={videoPendingDelete !== null}
         videoTitle={videoPendingDelete?.title || ''}
@@ -240,4 +244,3 @@ export const VideosView: React.FC<VideosViewProps> = ({
     </div>
   );
 };
-

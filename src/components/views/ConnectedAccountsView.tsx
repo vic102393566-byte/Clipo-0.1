@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { SocialAccount, SocialPlatform } from '../../types';
 import { socialAccountsService, AuthUrlResponse, AllConnectionsStatusResponse } from '../../services/socialAccountsService';
+import { useI18n } from '../../i18n/I18nContext';
 
 interface ConnectedAccountsViewProps {
   accounts: SocialAccount[];
@@ -39,7 +40,8 @@ interface PlatformConfigGuide {
   callbackPath: string;
   envKeys: string[];
   scopes: string[];
-  description: string;
+  descriptionPt: string;
+  descriptionEn: string;
 }
 
 const PLATFORMS_CONFIG_GUIDE: Record<'youtube' | 'instagram' | 'tiktok', PlatformConfigGuide> = {
@@ -55,7 +57,8 @@ const PLATFORMS_CONFIG_GUIDE: Record<'youtube' | 'instagram' | 'tiktok', Platfor
       'https://www.googleapis.com/auth/youtube.readonly',
       'https://www.googleapis.com/auth/userinfo.profile',
     ],
-    description: 'Permite conectar canais do YouTube para leitura de inscritos e upload oficial de Shorts e vídeos longos.',
+    descriptionPt: 'Permite conectar canais do YouTube para leitura de inscritos e upload oficial de Shorts e vídeos longos.',
+    descriptionEn: 'Connect YouTube channels for subscriber metrics and official upload of Shorts and long-form videos.',
   },
   instagram: {
     id: 'instagram',
@@ -70,7 +73,8 @@ const PLATFORMS_CONFIG_GUIDE: Record<'youtube' | 'instagram' | 'tiktok', Platfor
       'pages_show_list',
       'pages_read_engagement',
     ],
-    description: 'Permite autenticar contas profissionais/creator do Instagram para publicação de Reels e visualização de seguidores.',
+    descriptionPt: 'Permite autenticar contas profissionais/creator do Instagram para publicação de Reels e visualização de seguidores.',
+    descriptionEn: 'Authenticate Instagram creator/professional accounts for Reels publishing and follower analytics.',
   },
   tiktok: {
     id: 'tiktok',
@@ -85,7 +89,8 @@ const PLATFORMS_CONFIG_GUIDE: Record<'youtube' | 'instagram' | 'tiktok', Platfor
       'video.upload',
       'video.publish',
     ],
-    description: 'Permite conectar contas do TikTok via Direct Post API v2 oficial para envio programado de vídeos curtos.',
+    descriptionPt: 'Permite conectar contas do TikTok via Direct Post API v2 oficial para envio programado de vídeos curtos.',
+    descriptionEn: 'Connect TikTok accounts via official Direct Post API v2 for automated short-form video publishing.',
   },
 };
 
@@ -100,6 +105,9 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
   onUpgradeClick,
   onBack,
 }) => {
+  const { t, language } = useI18n();
+  const isEn = language === 'en-US';
+
   const [activePlatformAuthenticating, setActivePlatformAuthenticating] = useState<SocialPlatform | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
@@ -134,12 +142,16 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
 
         setActivePlatformAuthenticating(null);
         setAuthError(null);
-        setAuthSuccessMsg(`Conta do ${platform.toUpperCase()} conectada com sucesso via OAuth oficial!`);
+        setAuthSuccessMsg(
+          isEn
+            ? `${platform.toUpperCase()} account successfully connected via official OAuth!`
+            : `Conta do ${platform.toUpperCase()} conectada com sucesso via OAuth oficial!`
+        );
 
         const updatedPayload: Partial<SocialAccount> & { connected: boolean } = {
           connected: true,
           handle: accountData?.handle || `@${platform}_user`,
-          name: accountData?.name || `Criador ${platform}`,
+          name: accountData?.name || `Creator ${platform}`,
           avatar: accountData?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
           followers: accountData?.followers || '0',
           connectedAt: new Date().toISOString(),
@@ -151,15 +163,19 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
           onUpdateTikTokAccount(updatedPayload);
         }
       } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
-        const platform = event.data.platform || 'rede social';
+        const platform = event.data.platform || (isEn ? 'social network' : 'rede social');
         setActivePlatformAuthenticating(null);
-        setAuthError(`Erro na autorização do ${platform}: ${event.data.error || 'Acesso negado pelo usuário ou provedor.'}`);
+        setAuthError(
+          isEn
+            ? `Authorization error for ${platform}: ${event.data.error || 'Access denied by user or provider.'}`
+            : `Erro na autorização do ${platform}: ${event.data.error || 'Acesso negado pelo usuário ou provedor.'}`
+        );
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [onUpdateAccount, onUpdateTikTokAccount]);
+  }, [onUpdateAccount, onUpdateTikTokAccount, isEn]);
 
   // Sync real connection status from backend on mount or when userId changes
   useEffect(() => {
@@ -179,67 +195,73 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                 connected: true,
                 handle: status.account.handle,
                 name: status.account.name,
-                avatar: status.account.avatarUrl || currentAcc?.avatar || '',
-                followers: status.account.followersFormatted || String(status.account.followerCount || 0),
-                connectedAt: status.connectedAt || new Date().toISOString(),
+                avatar: status.account.avatarUrl || currentAcc?.avatar,
+                followers: status.account.followers || currentAcc?.followers || '0',
+                connectedAt: status.account.connectedAt || new Date().toISOString(),
               };
+
               if (onUpdateAccount) {
                 onUpdateAccount(plat, updatedPayload);
-              }
-            } else if (!status.connected && currentAcc?.connected) {
-              // Ensure no fake connected state
-              if (onUpdateAccount) {
-                onUpdateAccount(plat, { connected: false });
+              } else if (plat === 'tiktok' && onUpdateTikTokAccount) {
+                onUpdateTikTokAccount(updatedPayload);
               }
             }
           }
         });
       } catch (err) {
-        console.warn('Status das contas sociais no backend indisponível:', err);
+        console.error('Failed to sync social connection status:', err);
       }
     }
 
     loadBackendStatus();
+
     return () => {
       isCancelled = true;
     };
   }, [userId]);
 
-  // Initiate OAuth Flow with Popup
+  // Connect social account via secure popup OAuth flow
   const handleConnectPlatform = async (platform: 'youtube' | 'instagram' | 'tiktok') => {
     setAuthError(null);
     setAuthSuccessMsg(null);
     setActivePlatformAuthenticating(platform);
 
     try {
-      // 1. Fetch OAuth URL from backend (tokens and secrets remain on backend only)
-      const authData: AuthUrlResponse = await socialAccountsService.getAuthUrl(platform, userId);
+      let authRes: AuthUrlResponse;
 
-      // If missing client keys, show config guide
-      if (!authData.configured || !authData.url) {
+      if (platform === 'youtube') {
+        authRes = await socialAccountsService.getYouTubeAuthUrl(userId);
+      } else if (platform === 'instagram') {
+        authRes = await socialAccountsService.getInstagramAuthUrl(userId);
+      } else {
+        authRes = await socialAccountsService.getTikTokAuthUrl(userId);
+      }
+
+      if (!authRes.success || !authRes.url) {
         setActivePlatformAuthenticating(null);
-        setSelectedGuidePlatform(platform);
-        setAuthError(
-          `Para conectar ao ${PLATFORMS_CONFIG_GUIDE[platform].name}, configure as variáveis de ambiente necessárias (${PLATFORMS_CONFIG_GUIDE[platform].envKeys.join(', ')}) no Secrets ou no arquivo .env.`
-        );
+        setAuthError(authRes.error || (isEn ? `Missing OAuth configuration for ${platform}.` : `Configurações OAuth ausentes para o ${platform}.`));
         return;
       }
 
-      // 2. Open provider OAuth URL in popup (AI Studio OAuth guidelines: never container URL)
+      // Open OAuth popup window
       const width = 600;
-      const height = 720;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
+      const height = 700;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
 
       const popup = window.open(
-        authData.url,
-        `${platform}_oauth_popup`,
-        `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`
+        authRes.url,
+        `OAuth_${platform}`,
+        `toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=yes, copyhistory=no, width=${width}, height=${height}, top=${top}, left=${left}`
       );
 
       if (!popup || popup.closed || typeof popup.closed === 'undefined') {
         setActivePlatformAuthenticating(null);
-        setAuthError('O pop-up de autorização foi bloqueado pelo navegador. Por favor, habilite pop-ups para este site.');
+        setAuthError(
+          isEn
+            ? 'The authorization popup was blocked by your browser. Please allow popups for this site.'
+            : 'O pop-up de autorização foi bloqueado pelo navegador. Por favor, habilite pop-ups para este site.'
+        );
         return;
       }
 
@@ -251,14 +273,18 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
       }, 1000);
     } catch (err: any) {
       setActivePlatformAuthenticating(null);
-      setAuthError(err.message || `Falha ao iniciar o fluxo OAuth com o ${platform}.`);
+      setAuthError(err.message || (isEn ? `Failed to initiate OAuth flow for ${platform}.` : `Falha ao iniciar o fluxo OAuth com o ${platform}.`));
     }
   };
 
   // Disconnect social account securely on backend and local state
   const handleDisconnectPlatform = async (platform: 'youtube' | 'instagram' | 'tiktok') => {
     const platformLabel = PLATFORMS_CONFIG_GUIDE[platform].name;
-    if (!confirm(`Deseja desconectar sua conta do ${platformLabel}? O Clipo não terá mais acesso para agendamentos neste canal.`)) {
+    const confirmPrompt = isEn
+      ? `Do you want to disconnect your ${platformLabel} account? Clipo will no longer have access to publish on this channel.`
+      : `Deseja desconectar sua conta do ${platformLabel}? O Clipo não terá mais acesso para agendamentos neste canal.`;
+
+    if (!confirm(confirmPrompt)) {
       return;
     }
 
@@ -277,10 +303,14 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
         });
       }
 
-      setAuthSuccessMsg(`Conta do ${platformLabel} desconectada com sucesso.`);
+      setAuthSuccessMsg(
+        isEn
+          ? `${platformLabel} account successfully disconnected.`
+          : `Conta do ${platformLabel} desconectada com sucesso.`
+      );
     } catch (err: any) {
-      console.error(`Erro ao desconectar ${platform}:`, err);
-      setAuthError(err.message || `Erro ao desconectar conta do ${platformLabel}.`);
+      console.error(`Error disconnecting ${platform}:`, err);
+      setAuthError(err.message || (isEn ? `Failed to disconnect ${platformLabel} account.` : `Erro ao desconectar conta do ${platformLabel}.`));
     }
   };
 
@@ -301,16 +331,20 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
     {
       id: 'youtube',
       name: 'YouTube',
-      subname: 'Shorts & Vídeos',
-      desc: 'API Google OAuth 2.0: envio oficial de Shorts e vídeos longos com metadados completos.',
+      subname: isEn ? 'Shorts & Long Videos' : 'Shorts & Vídeos',
+      desc: isEn
+        ? 'Google OAuth 2.0 API: official publishing of Shorts and long videos with rich metadata.'
+        : 'API Google OAuth 2.0: envio oficial de Shorts e vídeos longos com metadados completos.',
       icon: <Youtube className="h-5 w-5 text-red-500" />,
       colorClasses: 'hover:border-red-500/40',
     },
     {
       id: 'instagram',
       name: 'Instagram',
-      subname: 'Reels & Feed',
-      desc: 'API Meta Graph: publicação direta de Reels, carrosséis de cortes e contagem de seguidores.',
+      subname: isEn ? 'Reels & Feed' : 'Reels & Feed',
+      desc: isEn
+        ? 'Meta Graph API: direct post of Reels, clip carousels, and follower metrics.'
+        : 'API Meta Graph: publicação direta de Reels, carrosséis de cortes e contagem de seguidores.',
       icon: <Instagram className="h-5 w-5 text-pink-500" />,
       colorClasses: 'hover:border-pink-500/40',
     },
@@ -318,7 +352,9 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
       id: 'tiktok',
       name: 'TikTok',
       subname: 'Direct Post v2',
-      desc: 'API Oficial TikTok v2: publicação com privacidade configurável, áudios e hashtags virais.',
+      desc: isEn
+        ? 'Official TikTok API v2: automated direct publishing with privacy settings, sounds, and tags.'
+        : 'API Oficial TikTok v2: publicação com privacidade configurável, áudios e hashtags virais.',
       icon: <Share2 className="h-5 w-5 text-cyan-400" />,
       colorClasses: 'hover:border-cyan-500/40',
     },
@@ -333,10 +369,10 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
             type="button"
             onClick={onBack}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#FDBA74] hover:text-white transition py-1.5 px-3 -ml-1 rounded-xl hover:bg-[#151515] border border-transparent hover:border-[#27272A] cursor-pointer group"
-            title="Voltar para a tela anterior"
+            title={t.common.back}
           >
             <span className="text-base font-bold leading-none transition-transform group-hover:-translate-x-0.5">←</span>
-            <span>Voltar</span>
+            <span>{t.common.back}</span>
           </button>
         </div>
       )}
@@ -347,25 +383,26 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
-              Canais Oficiais OAuth
+              {isEn ? 'Official OAuth Channels' : 'Canais Oficiais OAuth'}
             </span>
           </div>
-          <h2 className="mt-1 text-lg font-bold text-white">Contas de redes sociais</h2>
-          <p className="text-xs text-slate-400">
-            Conecte e gerencie suas contas no YouTube, Instagram e TikTok com autenticação OAuth segura
+          <h2 className="mt-1 text-lg font-bold text-white">{t.connectedAccounts.title}</h2>
+          <p className="text-xs text-[#FDBA74]">
+            {t.connectedAccounts.subtitle}
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
           <div className="rounded-xl border border-[#27272A] bg-[#151515] px-3.5 py-2 font-mono text-xs text-[#FDBA74]">
-            Canais ativos: <strong className="text-white">{connectedCount}</strong> / {maxSocialAccounts} (Plano {planName})
+            {isEn ? 'Active channels:' : 'Canais ativos:'}{' '}
+            <strong className="text-white">{connectedCount}</strong> / {maxSocialAccounts} ({isEn ? 'Plan' : 'Plano'} {planName})
           </div>
           <button
             onClick={() => setSelectedGuidePlatform('youtube')}
             className="flex items-center gap-1.5 rounded-xl border border-[#27272A] bg-[#151515] px-3.5 py-2 text-xs font-medium text-white hover:bg-[#1E1E1E] transition cursor-pointer"
           >
             <Key className="h-3.5 w-3.5 text-[#F97316]" />
-            <span>Guia de credenciais OAuth</span>
+            <span>{t.connectedAccounts.openSetupGuide}</span>
           </button>
         </div>
       </div>
@@ -374,9 +411,13 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
       {isAccountLimitReached && (
         <div className="flex items-start justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
           <div>
-            <span className="font-semibold text-amber-100">Limite de contas atingido:</span>
+            <span className="font-semibold text-amber-100">
+              {isEn ? 'Channel limit reached:' : 'Limite de contas atingido:'}
+            </span>
             <p className="mt-0.5 text-amber-300/90">
-              O plano {planName} permite conectar até {maxSocialAccounts} canais. Para conectar mais contas simultaneamente, faça upgrade na aba "Meu plano".
+              {isEn
+                ? `The ${planName} plan allows up to ${maxSocialAccounts} connected channels. Upgrade your plan to link more accounts simultaneously.`
+                : `O plano ${planName} permite conectar até ${maxSocialAccounts} canais. Para conectar mais contas simultaneamente, faça upgrade na aba "Meu plano".`}
             </p>
           </div>
           {onUpgradeClick && (
@@ -384,7 +425,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
               onClick={onUpgradeClick}
               className="rounded-xl bg-[#F97316] px-3 py-1.5 font-semibold text-white hover:bg-[#EA580C] shrink-0 text-xs transition cursor-pointer"
             >
-              Fazer upgrade
+              {isEn ? 'Upgrade plan' : 'Fazer upgrade'}
             </button>
           )}
         </div>
@@ -426,7 +467,8 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
       <div className="flex items-center gap-2.5 rounded-xl border border-[#27272A] bg-[#0A0A0A] p-3 text-xs text-[#FDBA74]">
         <ShieldCheck className="h-4 w-4 text-[#F97316] shrink-0" />
         <span>
-          <strong>Segurança OAuth de ponta a ponta:</strong> Tokens de acesso e segredos de clientes são criptografados e armazenados exclusivamente no backend por usuário. O frontend nunca tem acesso a credenciais sensíveis.
+          <strong>{t.connectedAccounts.officialNotice}:</strong>{' '}
+          {t.connectedAccounts.officialNoticeDesc}
         </span>
       </div>
 
@@ -469,16 +511,18 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
 
                 {/* Status Badge */}
                 <div className="mt-4 flex items-center justify-between">
-                  <span className="text-xs text-[#FDBA74] font-medium">Status da conexão:</span>
+                  <span className="text-xs text-[#FDBA74] font-medium">
+                    {isEn ? 'Connection status:' : 'Status da conexão:'}
+                  </span>
                   {isConnected ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      Conectado
+                      {t.common.connected}
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-800/60 border border-zinc-700/60 px-2.5 py-0.5 text-xs font-medium text-zinc-400">
                       <span className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
-                      Não conectado
+                      {t.common.disconnected}
                     </span>
                   )}
                 </div>
@@ -509,7 +553,9 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                           {acc.followers || '0'}
                         </span>
                         <p className="text-[10px] text-[#FDBA74]">
-                          {p.id === 'youtube' ? 'inscritos' : 'seguidores'}
+                          {p.id === 'youtube'
+                            ? (isEn ? 'subscribers' : 'inscritos')
+                            : (isEn ? 'followers' : 'seguidores')}
                         </p>
                       </div>
                     </div>
@@ -517,9 +563,9 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                     <div className="border-t border-[#27272A] pt-1.5 flex items-center justify-between text-[10px] text-[#A1A1AA] font-mono">
                       <span className="flex items-center gap-1 text-emerald-400">
                         <Lock className="h-3 w-3" />
-                        <span>Token seguro no backend</span>
+                        <span>{isEn ? 'Secure backend token' : 'Token seguro no backend'}</span>
                       </span>
-                      <span>{acc.connectedAt ? 'Ativo' : 'OAuth v2'}</span>
+                      <span>{acc.connectedAt ? (isEn ? 'Active' : 'Ativo') : 'OAuth v2'}</span>
                     </div>
                   </div>
                 )}
@@ -534,7 +580,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                       onClick={() => handleDisconnectPlatform(p.id)}
                       className="text-xs font-medium text-rose-400 hover:text-rose-300 transition cursor-pointer py-1.5"
                     >
-                      Desconectar
+                      {t.connectedAccounts.disconnectAccount}
                     </button>
 
                     <button
@@ -542,10 +588,10 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                       onClick={() => handleConnectPlatform(p.id)}
                       disabled={isAuthenticating}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-[#27272A] bg-[#0A0A0A] px-3 py-1.5 text-xs font-medium text-[#FDBA74] hover:text-white transition cursor-pointer disabled:opacity-50"
-                      title="Reautenticar ou atualizar permissões"
+                      title={isEn ? 'Reauthenticate or refresh scopes' : 'Reautenticar ou atualizar permissões'}
                     >
                       <RefreshCw className={`h-3 w-3 ${isAuthenticating ? 'animate-spin' : ''}`} />
-                      <span>Reconectar</span>
+                      <span>{isEn ? 'Reconnect' : 'Reconectar'}</span>
                     </button>
                   </div>
                 ) : (
@@ -554,7 +600,9 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                     onClick={() => {
                       if (isAccountLimitReached) {
                         setAuthError(
-                          `Limite de ${maxSocialAccounts} conta(s) do plano ${planName} atingido. Faça upgrade na aba "Meu plano" para conectar mais canais.`
+                          isEn
+                            ? `Limit of ${maxSocialAccounts} channel(s) reached for the ${planName} plan. Upgrade on "Billing & Plan" to connect more.`
+                            : `Limite de ${maxSocialAccounts} conta(s) do plano ${planName} atingido. Faça upgrade na aba "Meu plano" para conectar mais canais.`
                         );
                         return;
                       }
@@ -566,12 +614,12 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                     {isAuthenticating ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Aguardando autorização...</span>
+                        <span>{t.connectedAccounts.connectingPopup}</span>
                       </>
                     ) : (
                       <>
                         <Share2 className="h-4 w-4" />
-                        <span>Conectar {p.name}</span>
+                        <span>{isEn ? `Connect ${p.name}` : `Conectar ${p.name}`}</span>
                       </>
                     )}
                   </button>
@@ -599,10 +647,10 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    Guia de Configuração: {PLATFORMS_CONFIG_GUIDE[selectedGuidePlatform].name}
+                    {isEn ? `Setup Guide: ${PLATFORMS_CONFIG_GUIDE[selectedGuidePlatform].name}` : `Guia de Configuração: ${PLATFORMS_CONFIG_GUIDE[selectedGuidePlatform].name}`}
                   </h3>
                   <p className="text-xs text-[#FDBA74]">
-                    Instruções para registrar o App e cadastrar as credenciais OAuth
+                    {isEn ? 'Instructions to register app and configure OAuth credentials' : 'Instruções para registrar o App e cadastrar as credenciais OAuth'}
                   </p>
                 </div>
               </div>
@@ -635,10 +683,10 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
               {/* Step 1: Developer Console */}
               <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-3.5 space-y-2">
                 <span className="text-xs font-bold text-[#F97316] block">
-                  1. Acessar o Portal de Desenvolvedores
+                  {isEn ? '1. Access Developer Portal' : '1. Acessar o Portal de Desenvolvedores'}
                 </span>
                 <p className="text-slate-300">
-                  Cadastre ou abra seu aplicativo oficial em:
+                  {isEn ? 'Register or manage your developer app at:' : 'Cadastre ou abra seu aplicativo oficial em:'}
                 </p>
                 <a
                   href={PLATFORMS_CONFIG_GUIDE[selectedGuidePlatform].portalUrl}
@@ -654,15 +702,17 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
               {/* Step 2: Redirect URI */}
               <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-3.5 space-y-2">
                 <span className="text-xs font-bold text-[#F97316] block">
-                  2. Cadastrar as URIs de Redirecionamento (Redirect URIs)
+                  {isEn ? '2. Register Authorized Redirect URIs (Callbacks)' : '2. Cadastrar as URIs de Redirecionamento (Redirect URIs)'}
                 </span>
                 <p className="text-slate-300">
-                  No painel de configurações OAuth do app, adicione exatamente estas URLs autorizadas de retorno:
+                  {isEn
+                    ? 'In the app OAuth settings panel, register these exact callback URLs:'
+                    : 'No painel de configurações OAuth do app, adicione exatamente estas URLs autorizadas de retorno:'}
                 </p>
 
                 {/* Dev URI */}
                 <div className="space-y-1">
-                  <span className="text-[11px] text-[#FDBA74]">URL de Desenvolvimento:</span>
+                  <span className="text-[11px] text-[#FDBA74]">{isEn ? 'Development Callback URL:' : 'URL de Desenvolvimento:'}</span>
                   <div className="flex items-center justify-between gap-2 rounded-lg bg-[#151515] border border-[#27272A] px-3 py-2 font-mono text-[11px] text-white">
                     <span className="truncate">{getBaseAppUrl()}{PLATFORMS_CONFIG_GUIDE[selectedGuidePlatform].callbackPath}</span>
                     <button
@@ -671,14 +721,14 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                       className="text-[#F97316] hover:text-white flex items-center gap-1 shrink-0 font-sans text-xs cursor-pointer"
                     >
                       {copiedKey === 'dev' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                      <span>{copiedKey === 'dev' ? 'Copiado' : 'Copiar'}</span>
+                      <span>{copiedKey === 'dev' ? t.common.copied : t.common.copy}</span>
                     </button>
                   </div>
                 </div>
 
                 {/* Shared URI */}
                 <div className="space-y-1">
-                  <span className="text-[11px] text-[#FDBA74]">URL Compartilhada / Produção:</span>
+                  <span className="text-[11px] text-[#FDBA74]">{isEn ? 'Production / Shared Callback URL:' : 'URL Compartilhada / Produção:'}</span>
                   <div className="flex items-center justify-between gap-2 rounded-lg bg-[#151515] border border-[#27272A] px-3 py-2 font-mono text-[11px] text-white">
                     <span className="truncate">{getSharedAppUrl()}{PLATFORMS_CONFIG_GUIDE[selectedGuidePlatform].callbackPath}</span>
                     <button
@@ -687,7 +737,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                       className="text-[#F97316] hover:text-white flex items-center gap-1 shrink-0 font-sans text-xs cursor-pointer"
                     >
                       {copiedKey === 'shared' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                      <span>{copiedKey === 'shared' ? 'Copiado' : 'Copiar'}</span>
+                      <span>{copiedKey === 'shared' ? t.common.copied : t.common.copy}</span>
                     </button>
                   </div>
                 </div>
@@ -696,10 +746,12 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
               {/* Step 3: Environment Variables */}
               <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-3.5 space-y-2">
                 <span className="text-xs font-bold text-[#F97316] block">
-                  3. Variáveis de Ambiente Necessárias
+                  {isEn ? '3. Required Environment Variables' : '3. Variáveis de Ambiente Necessárias'}
                 </span>
                 <p className="text-slate-300">
-                  Adicione as credenciais geradas pelo portal nas variáveis de ambiente do servidor (arquivo .env ou painel Secrets do AI Studio):
+                  {isEn
+                    ? 'Add the generated client credentials to server environment variables (.env or deployment settings):'
+                    : 'Adicione as credenciais geradas pelo portal nas variáveis de ambiente do servidor (arquivo .env ou painel Secrets do AI Studio):'}
                 </p>
                 <div className="space-y-1.5 font-mono text-[11px]">
                   {PLATFORMS_CONFIG_GUIDE[selectedGuidePlatform].envKeys.map((key) => (
@@ -714,7 +766,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                         className="text-[#FDBA74] hover:text-white flex items-center gap-1 text-xs cursor-pointer"
                       >
                         {copiedKey === key ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                        <span>{copiedKey === key ? 'Copiado' : 'Copiar nome'}</span>
+                        <span>{copiedKey === key ? t.common.copied : (isEn ? 'Copy key' : 'Copiar nome')}</span>
                       </button>
                     </div>
                   ))}
@@ -724,7 +776,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
               {/* Step 4: Required Scopes */}
               <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-3.5 space-y-2">
                 <span className="text-xs font-bold text-[#F97316] block">
-                  4. Permissões Solicitadas (Scopes)
+                  {isEn ? '4. Requested Permissions (Scopes)' : '4. Permissões Solicitadas (Scopes)'}
                 </span>
                 <ul className="list-disc list-inside space-y-1 text-slate-300 font-mono text-[11px]">
                   {PLATFORMS_CONFIG_GUIDE[selectedGuidePlatform].scopes.map((s) => (
@@ -740,7 +792,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                 onClick={() => setSelectedGuidePlatform(null)}
                 className="rounded-xl bg-[#F97316] px-5 py-2 text-xs font-semibold text-white hover:bg-[#EA580C] transition cursor-pointer"
               >
-                Entendido
+                {isEn ? 'Got it' : 'Entendido'}
               </button>
             </div>
           </div>

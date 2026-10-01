@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { VideoItem } from '../types';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { useI18n } from '../i18n/I18nContext';
 
 interface VideoPlayerModalProps {
   video: VideoItem | null;
@@ -40,6 +41,9 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   onScheduleVideo,
   onGenerateAIMetadata,
 }) => {
+  const { t, language } = useI18n();
+  const isEn = language === 'en-US';
+
   // Form fields for editing
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -190,9 +194,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             </div>
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-white truncate max-w-md">
-                Detalhes e Edição do Vídeo
+                {isEn ? 'Video Details & Editing' : 'Detalhes e Edição do Vídeo'}
               </h2>
-              <p className="text-xs text-[#FDBA74]">Visualize, edite título, descrição, hashtags e cortes deste vídeo</p>
+              <p className="text-xs text-[#FDBA74]">
+                {isEn ? 'View, edit title, caption, hashtags, and generate 9:16 cuts' : 'Visualize, edite título, descrição, hashtags e cortes deste vídeo'}
+              </p>
             </div>
           </div>
 
@@ -200,16 +206,16 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             <button
               onClick={() => setIsConfirmDeleteOpen(true)}
               className="flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition cursor-pointer"
-              title="Excluir este vídeo permanentemente"
+              title={isEn ? 'Permanently delete this video' : 'Excluir este vídeo permanentemente'}
             >
               <Trash2 className="h-3.5 w-3.5" />
-              <span>Excluir vídeo</span>
+              <span>{isEn ? 'Delete video' : 'Excluir vídeo'}</span>
             </button>
 
             <button
               onClick={onClose}
-              className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#0A0A0A] hover:text-white transition"
-              aria-label="Fechar"
+              className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#0A0A0A] hover:text-white transition cursor-pointer"
+              aria-label={t.common.close}
             >
               <X className="h-5 w-5" />
             </button>
@@ -247,7 +253,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-2.5">
             <span className="text-[10px] font-medium text-[#FDBA74] uppercase tracking-wider">
-              Tamanho
+              {isEn ? 'File Size' : 'Tamanho'}
             </span>
             <div className="mt-0.5 flex items-center gap-1.5 font-mono text-xs font-semibold text-white tabular-nums">
               <HardDrive className="h-3 w-3 text-[#F97316]" />
@@ -257,7 +263,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
           <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-2.5">
             <span className="text-[10px] font-medium text-[#FDBA74] uppercase tracking-wider">
-              Duração
+              {isEn ? 'Duration' : 'Duração'}
             </span>
             <div className="mt-0.5 flex items-center gap-1.5 font-mono text-xs font-semibold text-white tabular-nums">
               <Clock className="h-3 w-3 text-[#F97316]" />
@@ -267,7 +273,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
           <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-2.5">
             <span className="text-[10px] font-medium text-[#FDBA74] uppercase tracking-wider">
-              Enviado em
+              {isEn ? 'Uploaded On' : 'Enviado em'}
             </span>
             <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-white">
               <Calendar className="h-3 w-3 text-[#F97316]" />
@@ -277,7 +283,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
           <div className="rounded-xl border border-[#27272A] bg-[#0A0A0A] p-2.5">
             <span className="text-[10px] font-medium text-[#FDBA74] uppercase tracking-wider">
-              Autor
+              {isEn ? 'Author' : 'Autor'}
             </span>
             <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-white">
               <User className="h-3 w-3 text-[#F97316]" />
@@ -293,12 +299,12 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-[#FDBA74] flex items-center gap-1.5">
               <Edit3 className="h-3.5 w-3.5 text-[#F97316]" />
-              Informações editáveis da publicação
+              {isEn ? 'Editable Post Information' : 'Informações editáveis da publicação'}
             </h3>
             {saveSuccess && (
               <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                 <Check className="h-3 w-3" />
-                Alterações salvas!
+                {isEn ? 'Changes saved!' : 'Alterações salvas!'}
               </span>
             )}
           </div>
@@ -306,13 +312,13 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           {/* 1. TÍTULO */}
           <div>
             <label className="block text-xs font-medium text-white mb-1.5">
-              Título do vídeo
+              {isEn ? 'Video Title' : 'Título do vídeo'}
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Digite o título do vídeo..."
+              placeholder={isEn ? 'Enter video title...' : 'Digite o título do vídeo...'}
               className="w-full rounded-xl border border-[#27272A] bg-[#151515] px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:border-[#F97316] focus:outline-none transition"
             />
           </div>
@@ -320,13 +326,13 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           {/* 2. DESCRIÇÃO */}
           <div>
             <label className="block text-xs font-medium text-white mb-1.5">
-              Descrição / Legenda
+              {isEn ? 'Description / Caption' : 'Descrição / Legenda'}
             </label>
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Escreva a legenda ou descrição completa do vídeo..."
+              placeholder={isEn ? 'Write the caption or full description...' : 'Escreva a legenda ou descrição completa do vídeo...'}
               className="w-full rounded-xl border border-[#27272A] bg-[#151515] px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:border-[#F97316] focus:outline-none transition resize-none leading-relaxed"
             />
           </div>
@@ -349,8 +355,8 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleRemoveHashtag(tag)}
-                    className="ml-0.5 rounded text-zinc-400 hover:text-white transition"
-                    title="Remover hashtag"
+                    className="ml-0.5 rounded text-zinc-400 hover:text-white transition cursor-pointer"
+                    title={isEn ? 'Remove hashtag' : 'Remover hashtag'}
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -358,7 +364,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
               ))}
               {hashtags.length === 0 && (
                 <span className="text-[11px] text-zinc-500 italic py-1">
-                  Nenhuma hashtag adicionada ainda.
+                  {isEn ? 'No hashtags added yet.' : 'Nenhuma hashtag adicionada ainda.'}
                 </span>
               )}
             </div>
@@ -371,17 +377,17 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   value={newTagInput}
                   onChange={(e) => setNewTagInput(e.target.value)}
                   onKeyDown={handleAddHashtag}
-                  placeholder="Adicionar hashtag (ex: clipo, shorts, viral)..."
+                  placeholder={isEn ? 'Add hashtag (e.g. clipo, shorts, viral)...' : 'Adicionar hashtag (ex: clipo, shorts, viral)...'}
                   className="w-full rounded-xl border border-[#27272A] bg-[#151515] px-3.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:border-[#F97316] focus:outline-none transition"
                 />
               </div>
               <button
                 type="button"
                 onClick={handleAddHashtag}
-                className="flex items-center gap-1 rounded-xl border border-[#27272A] bg-[#151515] px-3 py-1.5 text-xs font-medium text-white hover:border-[#F97316] hover:text-[#F97316] transition"
+                className="flex items-center gap-1 rounded-xl border border-[#27272A] bg-[#151515] px-3 py-1.5 text-xs font-medium text-white hover:border-[#F97316] hover:text-[#F97316] transition cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>Adicionar</span>
+                <span>{isEn ? 'Add' : 'Adicionar'}</span>
               </button>
             </div>
           </div>
@@ -391,22 +397,22 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-600/25 hover:bg-emerald-500 transition active:scale-[0.98] disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-600/25 hover:bg-emerald-500 transition active:scale-[0.98] disabled:opacity-50 cursor-pointer"
             >
               {isSaving ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>Salvando...</span>
+                  <span>{t.common.saving}</span>
                 </>
               ) : saveSuccess ? (
                 <>
                   <Check className="h-3.5 w-3.5" />
-                  <span>Salvo com sucesso!</span>
+                  <span>{isEn ? 'Saved successfully!' : 'Salvo com sucesso!'}</span>
                 </>
               ) : (
                 <>
                   <Save className="h-3.5 w-3.5" />
-                  <span>Salvar título, descrição e hashtags</span>
+                  <span>{isEn ? 'Save title, caption & hashtags' : 'Salvar título, descrição e hashtags'}</span>
                 </>
               )}
             </button>
@@ -420,7 +426,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             className="flex items-center gap-1.5 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 transition cursor-pointer"
           >
             <Trash2 className="h-4 w-4" />
-            <span>Excluir vídeo</span>
+            <span>{isEn ? 'Delete video' : 'Excluir vídeo'}</span>
           </button>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -437,11 +443,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   onClose();
                   onOpenSplit(targetVideo);
                 }}
-                className="flex items-center gap-1.5 rounded-xl border border-[#F97316]/50 bg-[#F97316]/10 px-3.5 py-2 text-xs font-semibold text-[#F97316] hover:bg-[#F97316]/20 transition active:scale-[0.98]"
-                title="Dividir este vídeo com cortes automáticos de 30s, 1m, 3m, 5m ou personalizado"
+                className="flex items-center gap-1.5 rounded-xl border border-[#F97316]/50 bg-[#F97316]/10 px-3.5 py-2 text-xs font-semibold text-[#F97316] hover:bg-[#F97316]/20 transition active:scale-[0.98] cursor-pointer"
+                title={isEn ? 'Split this video with automatic 30s, 1m, 3m, 5m cuts' : 'Dividir este vídeo com cortes automáticos de 30s, 1m, 3m, 5m ou personalizado'}
               >
                 <Scissors className="h-3.5 w-3.5" />
-                <span>Corte automático</span>
+                <span>{isEn ? 'Auto Trim 9:16' : 'Corte automático'}</span>
               </button>
             )}
 
@@ -457,10 +463,10 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   onClose();
                   onGenerateAIMetadata(targetVideo);
                 }}
-                className="flex items-center gap-1.5 rounded-xl border border-[#27272A] bg-[#0A0A0A] px-3.5 py-2 text-xs font-semibold text-white hover:border-[#F97316] hover:text-[#F97316] transition active:scale-[0.98]"
+                className="flex items-center gap-1.5 rounded-xl border border-[#27272A] bg-[#0A0A0A] px-3.5 py-2 text-xs font-semibold text-white hover:border-[#F97316] hover:text-[#F97316] transition active:scale-[0.98] cursor-pointer"
               >
                 <Sparkles className="h-3.5 w-3.5 text-[#F97316]" />
-                <span>Gerar com IA</span>
+                <span>{isEn ? 'Generate with AI' : 'Gerar com IA'}</span>
               </button>
             )}
 
@@ -476,18 +482,18 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   onClose();
                   onScheduleVideo(targetVideo);
                 }}
-                className="flex items-center gap-1.5 rounded-xl bg-[#F97316] px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-[#F97316]/30 hover:bg-[#EA580C] transition active:scale-[0.98]"
+                className="flex items-center gap-1.5 rounded-xl bg-[#F97316] px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-[#F97316]/30 hover:bg-[#EA580C] transition active:scale-[0.98] cursor-pointer"
               >
                 <Calendar className="h-3.5 w-3.5" />
-                <span>Agendar</span>
+                <span>{isEn ? 'Schedule' : 'Agendar'}</span>
               </button>
             )}
 
             <button
               onClick={onClose}
-              className="rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2 text-xs font-medium text-[#FDBA74] hover:text-white transition"
+              className="rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2 text-xs font-medium text-[#FDBA74] hover:text-white transition cursor-pointer"
             >
-              Fechar
+              {t.common.close}
             </button>
           </div>
         </div>

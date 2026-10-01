@@ -15,6 +15,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { TabType } from '../types';
+import { useI18n } from '../i18n/I18nContext';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -47,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activePlanTier = 'Pro',
   userProfile,
 }) => {
+  const { t } = useI18n();
   const displayUsed = storageUsage?.usedFormatted || '2.4 GB';
   const displayLimit = storageUsage?.limitFormatted || '50 GB';
   const displayPercent = storageUsage?.percentUsed ?? 4.8;
@@ -54,14 +56,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const userEmail = userProfile?.email || 'vic102393566@gmail.com';
   const userAvatar = userProfile?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
   const navItems: { id: TabType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'videos', label: 'Meus vídeos', icon: Film },
-    { id: 'agendamentos', label: 'Agendamentos', icon: Clock },
-    { id: 'calendario', label: 'Calendário', icon: CalendarDays },
-    { id: 'contas', label: 'Contas conectadas', icon: Share2 },
-    { id: 'armazenamento', label: 'Armazenamento', icon: HardDrive },
-    { id: 'plano', label: 'Meu plano', icon: Sparkles },
-    { id: 'configuracoes', label: 'Configurações', icon: Settings },
+    { id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard },
+    { id: 'videos', label: t.nav.videos, icon: Film },
+    { id: 'agendamentos', label: t.nav.agendamentos, icon: Clock },
+    { id: 'calendario', label: t.nav.calendario, icon: CalendarDays },
+    { id: 'contas', label: t.nav.contas, icon: Share2 },
+    { id: 'armazenamento', label: t.nav.armazenamento, icon: HardDrive },
+    { id: 'plano', label: t.nav.plano, icon: Sparkles },
+    { id: 'configuracoes', label: t.nav.configuracoes, icon: Settings },
   ];
 
   const handleSelectTab = (tab: TabType) => {
@@ -141,8 +143,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 VS
               </div>
               <div className="truncate">
-                <p className="truncate text-xs font-medium text-white">Vicente Studio</p>
-                <p className="text-[11px] text-[#FDBA74]">Plano Pro · 4 canais</p>
+                <p className="truncate text-xs font-medium text-white">{userName}</p>
+                <p className="text-[11px] text-[#FDBA74]">
+                  {activePlanTier} · 4 {t.nav.activeChannelsCount}
+                </p>
               </div>
             </div>
             <ChevronDown className="h-4 w-4 shrink-0 text-[#FDBA74] group-hover:text-white" />
@@ -152,7 +156,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto px-3 py-2">
           <div className="mb-2 px-3 text-[11px] font-medium tracking-wider text-[#FDBA74] uppercase">
-            Navegação
+            {t.nav.navigation}
           </div>
           <nav className="space-y-1">
             {navItems.map((item) => {
@@ -189,10 +193,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onOpenUpload();
                 setIsOpen(false);
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#F97316] py-2.5 px-4 text-xs font-semibold text-white shadow-md shadow-[#F97316]/25 transition hover:bg-[#EA580C] active:scale-[0.99]"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#F97316] py-2.5 px-4 text-xs font-semibold text-white shadow-md shadow-[#F97316]/25 transition hover:bg-[#EA580C] active:scale-[0.99] cursor-pointer"
             >
               <PlusCircle className="h-4 w-4" />
-              <span>Enviar novo vídeo</span>
+              <span>{t.nav.uploadNewVideo}</span>
             </button>
           </div>
         </div>
@@ -208,7 +212,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="cursor-pointer rounded-xl border border-[#27272A] bg-[#151515] p-3 transition hover:border-[#3F3F46] hover:bg-[#1A1A1A]"
           >
             <div className="flex items-center justify-between text-xs">
-              <span className="text-white font-medium">Armazenamento</span>
+              <span className="text-white font-medium">{t.nav.storage}</span>
               <span className="font-mono text-[#FDBA74] tabular-nums">
                 {displayUsed} / {displayLimit}
               </span>
@@ -246,7 +250,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   setIsOpen(false);
                 }}
                 className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#1E1E1E] hover:text-white"
-                title="Configurações de conta"
+                title={t.header.settings}
               >
                 <Settings className="h-4 w-4" />
               </button>
@@ -257,7 +261,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     setIsOpen(false);
                   }}
                   className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-rose-500/10 hover:text-rose-400 transition"
-                  title="Sair da conta"
+                  title={t.nav.logout}
                 >
                   <LogOut className="h-4 w-4" />
                 </button>

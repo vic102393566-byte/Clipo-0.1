@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { ScheduledPublication, SocialPlatform } from '../types';
 import { formatFileSize, extractVideoMetadata } from '../utils/videoUtils';
+import { useI18n } from '../i18n/I18nContext';
 
 interface UploadVideoModalProps {
   isOpen: boolean;
@@ -23,6 +24,9 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
   onClose,
   onAddPublication,
 }) => {
+  const { t, language } = useI18n();
+  const isEn = language === 'en-US';
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>([
@@ -37,6 +41,9 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
   const [simulatedFileName, setSimulatedFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [selectedDuration, setSelectedDuration] = useState('1:00');
+  const [selectedFileSize, setSelectedFileSize] = useState('15.4 MB');
+
   if (!isOpen) return null;
 
   const togglePlatform = (p: SocialPlatform) => {
@@ -49,9 +56,6 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
     }
   };
 
-  const [selectedDuration, setSelectedDuration] = useState('1:00');
-  const [selectedFileSize, setSelectedFileSize] = useState('15.4 MB');
-
   const processSelectedFile = async (file: File) => {
     setSimulatedFileName(file.name);
     setSelectedFileSize(formatFileSize(file.size));
@@ -62,7 +66,11 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
     if (!title) {
       const cleanName = file.name.replace(/\.[^/.]+$/, '');
       setTitle(cleanName);
-      setDescription('Dicas essenciais gravadas para engajamento nos primeiros 3 segundos.');
+      setDescription(
+        isEn
+          ? 'Essential productivity tips crafted for high 3-second hook retention! #creator #productivity #reels #shorts'
+          : 'Dicas essenciais gravadas para engajamento nos primeiros 3 segundos. #produtividade #creator #shorts'
+      );
     }
   };
 
@@ -81,8 +89,12 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
     setSelectedDuration('1:00');
     setSelectedFileSize('15.4 MB');
     if (!title) {
-      setTitle('Novo corte viral para redes sociais');
-      setDescription('Dicas essenciais gravadas para engajamento nos primeiros 3 segundos.');
+      setTitle(isEn ? 'New viral hook for social media' : 'Novo corte viral para redes sociais');
+      setDescription(
+        isEn
+          ? 'Top secrets revealed in the first 3 seconds! Comment what you think. #creator #viral #shorts #reels'
+          : 'Dicas essenciais gravadas para engajamento nos primeiros 3 segundos. #produtividade #creator'
+      );
     }
   };
 
@@ -93,11 +105,11 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
     const newPub: ScheduledPublication = {
       id: `pub-${Date.now()}`,
       title: title.trim(),
-      description: description.trim() || 'Sem legenda configurada',
+      description: description.trim() || (isEn ? 'No caption configured' : 'Sem legenda configurada'),
       thumbnail: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&auto=format&fit=crop&q=80',
       duration: selectedDuration,
       scheduledTime: scheduledTime,
-      scheduledDateLabel: '24 Set',
+      scheduledDateLabel: isEn ? 'Sep 24' : '24 Set',
       dateISO: scheduledDate,
       platforms: selectedPlatforms,
       status: 'agendado',
@@ -125,13 +137,17 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
               <Film className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-white">Enviar e agendar vídeo</h2>
-              <p className="text-xs text-[#FDBA74]">Distribuição inteligente nos canais configurados</p>
+              <h2 className="text-base font-semibold text-white">
+                {isEn ? 'Upload & Schedule Video' : 'Enviar e agendar vídeo'}
+              </h2>
+              <p className="text-xs text-[#FDBA74]">
+                {isEn ? 'Smart automated distribution across configured channels' : 'Distribuição inteligente nos canais configurados'}
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#0A0A0A] hover:text-white transition"
+            className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#0A0A0A] hover:text-white transition cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -179,15 +195,15 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
               {simulatedFileName ? (
                 <div className="text-sm font-semibold text-emerald-400 flex items-center justify-center gap-1.5">
                   <Check className="h-4 w-4" />
-                  <span>Arquivo carregado: {simulatedFileName}</span>
+                  <span>{isEn ? `File ready: ${simulatedFileName}` : `Arquivo carregado: ${simulatedFileName}`}</span>
                 </div>
               ) : (
                 <>
                   <p className="text-xs font-semibold text-white">
-                    Clique para selecionar ou arraste o arquivo aqui
+                    {isEn ? 'Click to select or drag video file here' : 'Clique para selecionar ou arraste o arquivo aqui'}
                   </p>
                   <p className="mt-1 text-[11px] text-[#FDBA74]">
-                    MP4, MOV ou WebM até 2 GB · Formato 9:16 recomendado
+                    {isEn ? 'MP4, MOV or WebM up to 2 GB · 9:16 vertical ratio recommended' : 'MP4, MOV ou WebM até 2 GB · Formato 9:16 recomendado'}
                   </p>
                 </>
               )}
@@ -197,12 +213,12 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
           {/* Title input */}
           <div>
             <label className="block text-xs font-medium text-[#FDBA74]">
-              Título do vídeo
+              {isEn ? 'Video Title' : 'Título do vídeo'}
             </label>
             <input
               type="text"
               required
-              placeholder="Ex: 3 Hacks de Produtividade que Todo Criador Precisa"
+              placeholder={isEn ? 'e.g. 3 Productivity Hacks Every Creator Needs' : 'Ex: 3 Hacks de Produtividade que Todo Criador Precisa'}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="mt-1.5 w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] px-3.5 py-2 text-xs text-white placeholder-[#71717A] focus:border-[#F97316] focus:outline-none"
@@ -213,24 +229,26 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
           <div>
             <div className="flex items-center justify-between">
               <label className="block text-xs font-medium text-[#FDBA74]">
-                Legenda e hashtags
+                {isEn ? 'Caption & Hashtags' : 'Legenda e hashtags'}
               </label>
               <button
                 type="button"
                 onClick={() => {
                   setDescription(
-                    'Você já sabia dessas dicas? Comente qual fez mais sentido para a sua rotina! 🔥 #produtividade #creator #tech #shorts #reels'
+                    isEn
+                      ? 'Did you know these top retention tactics? Drop a comment below! 🔥 #creator #productivity #reels #shorts #tiktok'
+                      : 'Você já sabia dessas dicas? Comente qual fez mais sentido para a sua rotina! 🔥 #produtividade #creator #tech #shorts #reels'
                   );
                 }}
-                className="flex items-center gap-1 text-[11px] font-medium text-[#F97316] hover:text-[#9333EA]"
+                className="flex items-center gap-1 text-[11px] font-medium text-[#F97316] hover:text-[#EA580C] cursor-pointer"
               >
                 <Sparkles className="h-3 w-3" />
-                <span>Gerar sugestão inteligente</span>
+                <span>{isEn ? 'Generate smart copy' : 'Gerar sugestão inteligente'}</span>
               </button>
             </div>
             <textarea
               rows={3}
-              placeholder="Adicione o texto que acompanhará a publicação em todas as redes..."
+              placeholder={isEn ? 'Write the caption that will accompany your post across channels...' : 'Adicione o texto que acompanhará a publicação em todas as redes...'}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="mt-1.5 w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] px-3.5 py-2 text-xs text-white placeholder-[#71717A] focus:border-[#F97316] focus:outline-none"
@@ -240,7 +258,7 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
           {/* Channels Selector */}
           <div>
             <label className="block text-xs font-medium text-[#FDBA74] mb-2">
-              Publicar simultaneamente em:
+              {isEn ? 'Publish simultaneously to:' : 'Publicar simultaneamente em:'}
             </label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {[
@@ -255,7 +273,7 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
                     key={item.id}
                     type="button"
                     onClick={() => togglePlatform(item.id)}
-                    className={`flex items-center justify-between rounded-xl border p-2.5 text-xs font-medium transition ${
+                    className={`flex items-center justify-between rounded-xl border p-2.5 text-xs font-medium transition cursor-pointer ${
                       isSelected
                         ? 'border-[#F97316] bg-[#F97316]/15 text-white'
                         : 'border-[#27272A] bg-[#0A0A0A] text-[#FDBA74]'
@@ -279,7 +297,7 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div>
               <label className="block text-xs font-medium text-[#FDBA74]">
-                Data do agendamento
+                {isEn ? 'Publication Date' : 'Data do agendamento'}
               </label>
               <div className="relative mt-1.5">
                 <input
@@ -293,7 +311,7 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
 
             <div>
               <label className="block text-xs font-medium text-[#FDBA74]">
-                Horário ideal
+                {isEn ? 'Target Time' : 'Horário ideal'}
               </label>
               <div className="relative mt-1.5">
                 <input
@@ -311,14 +329,18 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
             <div className="flex items-center gap-2.5">
               <Sparkles className="h-4 w-4 text-[#F97316]" />
               <div>
-                <p className="text-xs font-medium text-white">Legendas automáticas dinâmicas</p>
-                <p className="text-[11px] text-[#FDBA74]">Transcreve áudio com destaque nas palavras-chave</p>
+                <p className="text-xs font-medium text-white">
+                  {isEn ? 'Dynamic Auto Captions' : 'Legendas automáticas dinâmicas'}
+                </p>
+                <p className="text-[11px] text-[#FDBA74]">
+                  {isEn ? 'Transcribes audio with highlighted viral keywords' : 'Transcreve áudio com destaque nas palavras-chave'}
+                </p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => setAutoCaptions(!autoCaptions)}
-              className={`h-5 w-9 rounded-full p-0.5 transition ${
+              className={`h-5 w-9 rounded-full p-0.5 transition cursor-pointer ${
                 autoCaptions ? 'bg-[#F97316]' : 'bg-[#27272A]'
               }`}
             >
@@ -335,15 +357,15 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2 text-xs font-medium text-[#FDBA74] hover:text-white transition"
+              className="rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2 text-xs font-medium text-[#FDBA74] hover:text-white transition cursor-pointer"
             >
-              Cancelar
+              {t.common.cancel}
             </button>
             <button
               type="submit"
-              className="rounded-xl bg-[#F97316] px-5 py-2 text-xs font-semibold text-white shadow-md shadow-[#F97316]/30 hover:bg-[#EA580C] transition active:scale-[0.98]"
+              className="rounded-xl bg-[#F97316] px-5 py-2 text-xs font-semibold text-white shadow-md shadow-[#F97316]/30 hover:bg-[#EA580C] transition active:scale-[0.98] cursor-pointer"
             >
-              Agendar publicação
+              {isEn ? 'Schedule Post' : 'Agendar publicação'}
             </button>
           </div>
         </form>

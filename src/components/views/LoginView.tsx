@@ -11,10 +11,14 @@ import {
   CheckCircle2,
   ShieldCheck,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Globe,
+  Check
 } from 'lucide-react';
 import { authService, DEFAULT_DEMO_USER } from '../../services/authService';
 import { User } from '../../types';
+import { useI18n } from '../../i18n/I18nContext';
+import { Language } from '../../i18n/types';
 
 interface LoginViewProps {
   onLoginSuccess: (user: User) => void;
@@ -27,7 +31,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
   initialMode = 'login',
   onNavigate,
 }) => {
+  const { t, language, setLanguage } = useI18n();
+  const isEn = language === 'en-US';
+
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
 
   // Login fields
   const [loginEmail, setLoginEmail] = useState('');
@@ -61,12 +69,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setSuccessMessage(null);
 
     if (!loginEmail.trim()) {
-      setErrorMessage('Por favor, informe seu e-mail de acesso.');
+      setErrorMessage(isEn ? 'Please enter your email address.' : 'Por favor, informe seu e-mail de acesso.');
       return;
     }
 
     if (!loginPassword.trim()) {
-      setErrorMessage('Por favor, informe sua senha de acesso.');
+      setErrorMessage(isEn ? 'Please enter your password.' : 'Por favor, informe sua senha de acesso.');
       return;
     }
 
@@ -79,11 +87,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
       if (result.success && result.user) {
         onLoginSuccess(result.user);
       } else {
-        setErrorMessage(result.error || 'Credenciais inválidas. Verifique seu e-mail e senha.');
+        setErrorMessage(result.error || (isEn ? 'Invalid credentials. Please check your email and password.' : 'Credenciais inválidas. Verifique seu e-mail e senha.'));
       }
     } catch {
       setIsLoading(false);
-      setErrorMessage('Ocorreu um erro ao processar a autenticação. Tente novamente.');
+      setErrorMessage(isEn ? 'An error occurred during authentication. Please try again.' : 'Ocorreu um erro ao processar a autenticação. Tente novamente.');
     }
   };
 
@@ -94,52 +102,39 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setSuccessMessage(null);
 
     if (!registerName.trim()) {
-      setErrorMessage('Por favor, informe seu nome completo.');
+      setErrorMessage(isEn ? 'Please enter your full name.' : 'Por favor, informe seu nome completo.');
       return;
     }
 
     if (!registerEmail.trim()) {
-      setErrorMessage('Por favor, informe seu e-mail de cadastro.');
+      setErrorMessage(isEn ? 'Please enter your email address.' : 'Por favor, informe seu e-mail.');
       return;
     }
 
-    if (!registerPassword.trim()) {
-      setErrorMessage('Por favor, crie uma senha de acesso.');
-      return;
-    }
-
-    if (registerPassword.length < 6) {
-      setErrorMessage('A senha deve conter no mínimo 6 caracteres.');
+    if (!registerPassword.trim() || registerPassword.length < 6) {
+      setErrorMessage(isEn ? 'Password must be at least 6 characters long.' : 'A senha deve conter no mínimo 6 caracteres.');
       return;
     }
 
     if (registerPassword !== registerConfirmPassword) {
-      setErrorMessage('As senhas não coincidem. Digite a mesma senha nos dois campos.');
+      setErrorMessage(isEn ? 'The passwords entered do not match.' : 'As senhas digitadas não conferem.');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const result = await authService.register(
-        registerName,
-        registerEmail,
-        registerPassword,
-        registerConfirmPassword
-      );
+      const result = await authService.register(registerEmail, registerPassword, registerName);
       setIsLoading(false);
 
       if (result.success && result.user) {
-        setSuccessMessage('Conta criada com sucesso! Redirecionando...');
-        setTimeout(() => {
-          onLoginSuccess(result.user!);
-        }, 400);
+        onLoginSuccess(result.user);
       } else {
-        setErrorMessage(result.error || 'Não foi possível concluir o cadastro. Verifique os dados.');
+        setErrorMessage(result.error || (isEn ? 'Could not create account with provided information.' : 'Não foi possível criar a conta com as informações fornecidas.'));
       }
     } catch {
       setIsLoading(false);
-      setErrorMessage('Ocorreu um erro inesperado ao criar a conta. Tente novamente.');
+      setErrorMessage(isEn ? 'An unexpected error occurred while creating your account.' : 'Ocorreu um erro inesperado ao criar a conta. Tente novamente.');
     }
   };
 
@@ -151,7 +146,59 @@ export const LoginView: React.FC<LoginViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#0A0A0A] flex flex-col items-center justify-center p-4 sm:p-6 text-white selection:bg-[#F97316]/30 selection:text-white">
+    <div className="min-h-screen w-full bg-[#0A0A0A] flex flex-col items-center justify-center p-4 sm:p-6 text-white selection:bg-[#F97316]/30 selection:text-white relative">
+      {/* Top right language selector */}
+      <div className="absolute top-4 right-4 z-20">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
+            className="flex items-center gap-1.5 rounded-xl border border-[#27272A] bg-[#151515] px-3 py-1.5 text-xs text-[#FDBA74] hover:border-[#F97316] hover:text-white transition cursor-pointer"
+            title={t.header.selectLanguage}
+          >
+            <Globe className="h-3.5 w-3.5 text-[#F97316]" />
+            <span className="font-semibold text-[11px] tracking-wider uppercase">
+              {language === 'pt-BR' ? 'PT' : 'EN'}
+            </span>
+          </button>
+
+          {isLangMenuOpen && (
+            <div className="absolute right-0 mt-2 w-44 rounded-xl border border-[#27272A] bg-[#151515] p-1.5 shadow-2xl z-30 animate-in fade-in zoom-in-95 duration-150">
+              <button
+                type="button"
+                onClick={() => {
+                  setLanguage('pt-BR');
+                  setIsLangMenuOpen(false);
+                }}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition cursor-pointer ${
+                  language === 'pt-BR'
+                    ? 'bg-[#F97316]/15 text-[#F97316] font-semibold'
+                    : 'text-slate-300 hover:bg-[#202020] hover:text-white'
+                }`}
+              >
+                <span>🇧🇷 Português</span>
+                {language === 'pt-BR' && <Check className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLanguage('en-US');
+                  setIsLangMenuOpen(false);
+                }}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition cursor-pointer ${
+                  language === 'en-US'
+                    ? 'bg-[#F97316]/15 text-[#F97316] font-semibold'
+                    : 'text-slate-300 hover:bg-[#202020] hover:text-white'
+                }`}
+              >
+                <span>🇺🇸 English</span>
+                {language === 'en-US' && <Check className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Background subtle radial glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] bg-[#F97316]/10 rounded-full blur-[130px]" />
@@ -193,12 +240,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
           </div>
 
           <h1 className="text-2xl font-bold tracking-tight text-white pt-3">
-            {mode === 'login' ? 'Entrar na sua conta' : 'Criar sua conta no Clipo'}
+            {mode === 'login' ? t.login.loginTitle : t.login.registerTitle}
           </h1>
           <p className="text-xs text-[#FDBA74]">
-            {mode === 'login'
-              ? 'Gerencie seus cortes automáticos e agendamentos de vídeos'
-              : 'Automatize cortes verticais e publicações em múltiplos canais'}
+            {mode === 'login' ? t.login.loginSubtitle : t.login.registerSubtitle}
           </p>
         </div>
 
@@ -209,26 +254,26 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <button
               type="button"
               onClick={() => handleSwitchMode('login')}
-              className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition ${
+              className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition cursor-pointer ${
                 mode === 'login'
                   ? 'bg-[#1E1E1E] text-white shadow-sm border border-[#27272A]'
                   : 'text-[#FDBA74] hover:text-white'
               }`}
             >
               <LogIn className="h-3.5 w-3.5" />
-              <span>Entrar</span>
+              <span>{isEn ? 'Sign In' : 'Entrar'}</span>
             </button>
             <button
               type="button"
               onClick={() => handleSwitchMode('register')}
-              className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition ${
+              className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition cursor-pointer ${
                 mode === 'register'
                   ? 'bg-[#1E1E1E] text-white shadow-sm border border-[#27272A]'
                   : 'text-[#FDBA74] hover:text-white'
               }`}
             >
               <UserPlus className="h-3.5 w-3.5" />
-              <span>Cadastrar</span>
+              <span>{isEn ? 'Register' : 'Cadastrar'}</span>
             </button>
           </div>
 
@@ -258,53 +303,45 @@ export const LoginView: React.FC<LoginViewProps> = ({
               {/* E-mail field */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-white">
-                  E-mail
+                  {t.login.emailLabel}
                 </label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                    <Mail className="h-4 w-4 text-[#FDBA74]" />
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-[#FDBA74]">
+                    <Mail className="h-4 w-4" />
                   </div>
                   <input
                     type="email"
+                    required
                     value={loginEmail}
-                    onChange={(e) => {
-                      setLoginEmail(e.target.value);
-                      if (errorMessage) setErrorMessage(null);
-                    }}
-                    placeholder="seu.email@exemplo.com"
-                    autoComplete="email"
-                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] py-2.5 pl-10 pr-3.5 text-xs text-white placeholder-[#71717A] transition focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] focus:outline-none"
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder={t.login.emailPlaceholder}
+                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] pl-10 pr-4 py-2.5 text-xs text-white placeholder-[#71717A] focus:border-[#F97316] focus:outline-none transition"
                   />
                 </div>
               </div>
 
               {/* Password field */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-white">
-                    Senha
-                  </label>
-                </div>
+                <label className="block text-xs font-semibold text-white">
+                  {t.login.passwordLabel}
+                </label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                    <Lock className="h-4 w-4 text-[#FDBA74]" />
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-[#FDBA74]">
+                    <Lock className="h-4 w-4" />
                   </div>
                   <input
                     type={showLoginPassword ? 'text' : 'password'}
+                    required
                     value={loginPassword}
-                    onChange={(e) => {
-                      setLoginPassword(e.target.value);
-                      if (errorMessage) setErrorMessage(null);
-                    }}
-                    placeholder="Digite sua senha"
-                    autoComplete="current-password"
-                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] py-2.5 pl-10 pr-10 text-xs text-white placeholder-[#71717A] transition focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] focus:outline-none"
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] pl-10 pr-10 py-2.5 text-xs text-white placeholder-[#71717A] focus:border-[#F97316] focus:outline-none transition"
                   />
                   <button
                     type="button"
                     onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#FDBA74] hover:text-white transition"
-                    aria-label={showLoginPassword ? 'Ocultar senha' : 'Exibir senha'}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#FDBA74] hover:text-white transition cursor-pointer"
+                    aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
                   >
                     {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -321,12 +358,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   {isLoading ? (
                     <span className="flex items-center gap-2">
                       <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      <span>Autenticando...</span>
+                      <span>{t.login.loggingIn}</span>
                     </span>
                   ) : (
                     <>
                       <LogIn className="h-4 w-4" />
-                      <span>Entrar no Clipo</span>
+                      <span>{t.login.loginBtn}</span>
                     </>
                   )}
                 </button>
@@ -335,13 +372,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
               {/* Quick switch to register */}
               <div className="text-center pt-2">
                 <p className="text-xs text-[#FDBA74]">
-                  Não tem uma conta?{' '}
+                  {t.login.noAccount}{' '}
                   <button
                     type="button"
                     onClick={() => handleSwitchMode('register')}
-                    className="font-semibold text-[#F97316] hover:text-[#EA580C] transition"
+                    className="font-semibold text-[#F97316] hover:text-[#EA580C] transition cursor-pointer"
                   >
-                    Cadastre-se grátis
+                    {t.login.createAccountLink}
                   </button>
                 </p>
               </div>
@@ -350,49 +387,43 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
           {/* FORM: REGISTER */}
           {mode === 'register' && (
-            <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
+            <form onSubmit={handleRegisterSubmit} className="space-y-4">
               {/* Name field */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-white">
-                  Nome completo
+                  {t.login.nameLabel}
                 </label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                    <UserIcon className="h-4 w-4 text-[#FDBA74]" />
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-[#FDBA74]">
+                    <UserIcon className="h-4 w-4" />
                   </div>
                   <input
                     type="text"
+                    required
                     value={registerName}
-                    onChange={(e) => {
-                      setRegisterName(e.target.value);
-                      if (errorMessage) setErrorMessage(null);
-                    }}
-                    placeholder="Seu nome ou canal"
-                    autoComplete="name"
-                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] py-2.5 pl-10 pr-3.5 text-xs text-white placeholder-[#71717A] transition focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] focus:outline-none"
+                    onChange={(e) => setRegisterName(e.target.value)}
+                    placeholder={t.login.namePlaceholder}
+                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] pl-10 pr-4 py-2.5 text-xs text-white placeholder-[#71717A] focus:border-[#F97316] focus:outline-none transition"
                   />
                 </div>
               </div>
 
-              {/* E-mail field */}
+              {/* Email field */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-white">
-                  E-mail
+                  {t.login.emailLabel}
                 </label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                    <Mail className="h-4 w-4 text-[#FDBA74]" />
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-[#FDBA74]">
+                    <Mail className="h-4 w-4" />
                   </div>
                   <input
                     type="email"
+                    required
                     value={registerEmail}
-                    onChange={(e) => {
-                      setRegisterEmail(e.target.value);
-                      if (errorMessage) setErrorMessage(null);
-                    }}
-                    placeholder="seu.email@exemplo.com"
-                    autoComplete="email"
-                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] py-2.5 pl-10 pr-3.5 text-xs text-white placeholder-[#71717A] transition focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] focus:outline-none"
+                    onChange={(e) => setRegisterEmail(e.target.value)}
+                    placeholder={t.login.emailPlaceholder}
+                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] pl-10 pr-4 py-2.5 text-xs text-white placeholder-[#71717A] focus:border-[#F97316] focus:outline-none transition"
                   />
                 </div>
               </div>
@@ -400,59 +431,53 @@ export const LoginView: React.FC<LoginViewProps> = ({
               {/* Password field */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-white">
-                  Senha (mínimo 6 caracteres)
+                  {t.login.passwordLabel}
                 </label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                    <Lock className="h-4 w-4 text-[#FDBA74]" />
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-[#FDBA74]">
+                    <Lock className="h-4 w-4" />
                   </div>
                   <input
                     type={showRegisterPassword ? 'text' : 'password'}
+                    required
                     value={registerPassword}
-                    onChange={(e) => {
-                      setRegisterPassword(e.target.value);
-                      if (errorMessage) setErrorMessage(null);
-                    }}
-                    placeholder="Crie uma senha segura"
-                    autoComplete="new-password"
-                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] py-2.5 pl-10 pr-10 text-xs text-white placeholder-[#71717A] transition focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] focus:outline-none"
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] pl-10 pr-10 py-2.5 text-xs text-white placeholder-[#71717A] focus:border-[#F97316] focus:outline-none transition"
                   />
                   <button
                     type="button"
                     onClick={() => setShowRegisterPassword(!showRegisterPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#FDBA74] hover:text-white transition"
-                    aria-label={showRegisterPassword ? 'Ocultar senha' : 'Exibir senha'}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#FDBA74] hover:text-white transition cursor-pointer"
+                    aria-label={showRegisterPassword ? 'Hide password' : 'Show password'}
                   >
                     {showRegisterPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Confirm Password field */}
+              {/* Confirm password field */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-white">
-                  Confirmar senha
+                  {t.login.confirmPasswordLabel}
                 </label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                    <CheckCircle2 className="h-4 w-4 text-[#FDBA74]" />
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-[#FDBA74]">
+                    <Lock className="h-4 w-4" />
                   </div>
                   <input
                     type={showRegisterConfirm ? 'text' : 'password'}
+                    required
                     value={registerConfirmPassword}
-                    onChange={(e) => {
-                      setRegisterConfirmPassword(e.target.value);
-                      if (errorMessage) setErrorMessage(null);
-                    }}
-                    placeholder="Repita sua senha"
-                    autoComplete="new-password"
-                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] py-2.5 pl-10 pr-10 text-xs text-white placeholder-[#71717A] transition focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] focus:outline-none"
+                    onChange={(e) => setRegisterConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-xl border border-[#27272A] bg-[#0A0A0A] pl-10 pr-10 py-2.5 text-xs text-white placeholder-[#71717A] focus:border-[#F97316] focus:outline-none transition"
                   />
                   <button
                     type="button"
                     onClick={() => setShowRegisterConfirm(!showRegisterConfirm)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#FDBA74] hover:text-white transition"
-                    aria-label={showRegisterConfirm ? 'Ocultar senha' : 'Exibir senha'}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#FDBA74] hover:text-white transition cursor-pointer"
+                    aria-label={showRegisterConfirm ? 'Hide password' : 'Show password'}
                   >
                     {showRegisterConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -469,12 +494,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   {isLoading ? (
                     <span className="flex items-center gap-2">
                       <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      <span>Criando sua conta...</span>
+                      <span>{t.login.registering}</span>
                     </span>
                   ) : (
                     <>
                       <UserPlus className="h-4 w-4" />
-                      <span>Criar minha conta</span>
+                      <span>{t.login.registerBtn}</span>
                     </>
                   )}
                 </button>
@@ -483,13 +508,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
               {/* Quick switch to login */}
               <div className="text-center pt-2">
                 <p className="text-xs text-[#FDBA74]">
-                  Já possui uma conta?{' '}
+                  {t.login.hasAccount}{' '}
                   <button
                     type="button"
                     onClick={() => handleSwitchMode('login')}
-                    className="font-semibold text-[#F97316] hover:text-[#EA580C] transition"
+                    className="font-semibold text-[#F97316] hover:text-[#EA580C] transition cursor-pointer"
                   >
-                    Fazer login
+                    {t.login.loginLink}
                   </button>
                 </p>
               </div>
@@ -502,25 +527,25 @@ export const LoginView: React.FC<LoginViewProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-medium text-[#FDBA74] flex items-center gap-1.5">
                   <ShieldCheck className="h-3.5 w-3.5 text-[#F97316]" />
-                  Acesso de Demonstração
+                  {t.login.demoAccess}
                 </span>
                 <button
                   type="button"
                   onClick={handleQuickFillDemo}
-                  className="text-[11px] font-medium text-[#F97316] hover:text-[#EA580C] transition flex items-center gap-1"
+                  className="text-[11px] font-medium text-[#F97316] hover:text-[#EA580C] transition flex items-center gap-1 cursor-pointer"
                 >
-                  <span>Preencher dados</span>
+                  <span>{t.login.fillDemoData}</span>
                   <ArrowRight className="h-3 w-3" />
                 </button>
               </div>
 
               <div className="mt-2 rounded-xl bg-[#0A0A0A] border border-[#27272A] p-3 text-[11px] space-y-1">
                 <div className="flex items-center justify-between text-white">
-                  <span className="text-[#FDBA74]">E-mail:</span>
+                  <span className="text-[#FDBA74]">{isEn ? 'Email:' : 'E-mail:'}</span>
                   <span className="font-mono text-white font-medium">{DEFAULT_DEMO_USER.email}</span>
                 </div>
                 <div className="flex items-center justify-between text-white">
-                  <span className="text-[#FDBA74]">Senha:</span>
+                  <span className="text-[#FDBA74]">{isEn ? 'Password:' : 'Senha:'}</span>
                   <span className="font-mono text-white font-medium">123456</span>
                 </div>
               </div>
@@ -541,7 +566,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
               }}
               className="text-[#FDBA74] hover:text-white transition underline underline-offset-4"
             >
-              Termos de Serviço
+              {t.login.termsLink}
             </a>
             <span className="text-[#27272A]">·</span>
             <a
@@ -554,10 +579,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
               }}
               className="text-[#FDBA74] hover:text-white transition underline underline-offset-4"
             >
-              Política de Privacidade
+              {t.login.privacyLink}
             </a>
           </div>
-          <p>© 2026 Clipo · Automação e publicação inteligente</p>
+          <p>{t.login.copyright}</p>
         </div>
       </div>
     </div>
