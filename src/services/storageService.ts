@@ -11,6 +11,9 @@ import {
   getEffectiveSupabaseUserId,
   categorizeUploadError,
   isUUID,
+  ensureSupabaseConfigured,
+  getSupabaseUrl,
+  getSupabaseAnonKey,
 } from './supabaseClient';
 
 export {
@@ -24,6 +27,9 @@ export {
   getEffectiveSupabaseUserId,
   categorizeUploadError,
   isUUID,
+  ensureSupabaseConfigured,
+  getSupabaseUrl,
+  getSupabaseAnonKey,
 };
 
 /**

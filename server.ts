@@ -1980,6 +1980,37 @@ Você nunca inventa fatos que contradigam os metadados do vídeo. Toda a sugest�
   }
 });
 
+// Runtime configuration endpoint for Supabase public client parameters
+app.get('/api/config', (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  const clean = (val?: string) => (val ? val.replace(/^["']+|["']+$/g, '').trim() : '');
+
+  const url = clean(
+    process.env.VITE_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    ''
+  );
+
+  const anonKey = clean(
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.VITE_SUPABASE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    ''
+  );
+
+  return res.json({
+    configured: Boolean(url && anonKey),
+    url,
+    anonKey,
+  });
+});
+
 // Ensure ANY unhandled request to /api/* returns JSON, never HTML
 app.all('/api/*', (req: Request, res: Response) => {
   console.warn(`[API 404] Rota não encontrada: ${req.method} ${req.originalUrl}`);

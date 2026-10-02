@@ -11,28 +11,184 @@ import * as tus from 'tus-js-client';
  * 2. Estrutura de pastas por usuário: {ID_DO_USUARIO}/videos/{nome-do-arquivo}
  * 3. Binários de vídeo NUNCA passam pelo proxy/backend em produção (upload direto para o Storage)
  * 4. Vídeos grandes (> 6 MB) utilizam Upload Resumível (TUS) do Supabase Storage
- * 5. Nenhum segredo ou Service Role Key é exposto no frontend (apenas VITE_SUPABASE_ANON_KEY)
- * 6. Preparado para Supabase Auth (auth.uid() = UUID DO USUÁRIO NO SUPABASE)
+ * 5. Nenhum segredo ou Service Role Key é exposto no frontend (apenas VITE_SUPABASE_ANON_KEY ou nova Publishable Key)
+ * 6. Suporte universal a variáveis de ambiente (.env, Vercel, Vite, process.env, runtime)
+ * 7. Preparado para Supabase Auth (auth.uid() = UUID DO USUÁRIO NO SUPABASE)
  * =========================================================================
  */
 
 export const SUPABASE_VIDEOS_BUCKET = 'clipo-videos';
 
-// Variáveis de ambiente padrão do Vite
-const rawSupabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-const rawSupabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+/**
+ * Limpa e higieniza valores de variáveis de ambiente:
+ * - Remove aspas simples ou duplas ao redor do valor (ex: "https://..." -> https://...)
+ * - Remove espaços em branco antes e depois
+ */
+export function cleanEnvValue(value?: string | null): string {
+  if (!value || typeof value !== 'string') return '';
+  let cleaned = value.trim();
+  // Remove aspas duplas ou simples envolventes geradas ao copiar de .env para o painel da Vercel
+  cleaned = cleaned.replace(/^["']+|["']+$/g, '').trim();
+  return cleaned;
+}
+
+/**
+ * Normaliza e valida a URL do Supabase:
+ * - Remove aspas e espaços
+ * - Rejeita placeholders
+ * - Adiciona https:// caso o usuário tenha colado apenas "xxxx.supabase.co"
+ * - Remove barras no final (ex: https://xxxx.supabase.co/ -> https://xxxx.supabase.co)
+ */
+export function normalizeSupabaseUrl(urlRaw?: string | null): string {
+  let url = cleanEnvValue(urlRaw);
+  if (!url) return '';
+  if (
+    url === 'MY_SUPABASE_URL' ||
+    url.includes('placeholder') ||
+    url.includes('your-project-id')
+  ) {
+    return '';
+  }
+  // Se o usuário colou o domínio sem protocolo https://
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
+  }
+  // Remove barras no final para evitar URLs com barra dupla
+  return url.replace(/\/+$/, '');
+}
+
+/**
+ * Normaliza e valida a chave do Supabase:
+ * - Remove aspas e espaços
+ * - Rejeita placeholders
+ * - Suporta tanto a Anon Key clássica (JWT eyJhbGciOi...) quanto a nova Supabase Publishable Key (sb_publishable_... / sbp_...)
+ */
+export function normalizeSupabaseKey(keyRaw?: string | null): string {
+  const key = cleanEnvValue(keyRaw);
+  if (!key) return '';
+  if (
+    key === 'MY_SUPABASE_ANON_KEY' ||
+    key.includes('placeholder') ||
+    key.includes('your-anon-public-key')
+  ) {
+    return '';
+  }
+  return key;
+}
+
+// Armazenamento em memória para configuração dinâmica obtida em tempo de execução (/api/config)
+let runtimeConfig: { url: string; anonKey: string } | null = null;
+
+/**
+ * Obtém a URL do Supabase consultando todas as fontes possíveis:
+ * 1. Runtime cache (/api/config)
+ * 2. Vite import.meta.env (VITE_SUPABASE_URL, SUPABASE_URL, NEXT_PUBLIC_SUPABASE_URL)
+ * 3. window.__ENV__ ou window globals
+ */
+export function getSupabaseUrl(): string {
+  if (runtimeConfig?.url) {
+    return runtimeConfig.url;
+  }
+
+  const candidates: (string | undefined | null)[] = [
+    import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.SUPABASE_URL,
+    import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
+    typeof window !== 'undefined' ? (window as any).__ENV__?.VITE_SUPABASE_URL : '',
+    typeof window !== 'undefined' ? (window as any).__ENV__?.SUPABASE_URL : '',
+    typeof window !== 'undefined' ? (window as any).VITE_SUPABASE_URL : '',
+    typeof window !== 'undefined' ? (window as any).SUPABASE_URL : '',
+  ];
+
+  for (const cand of candidates) {
+    const norm = normalizeSupabaseUrl(cand);
+    if (norm) return norm;
+  }
+
+  return '';
+}
+
+/**
+ * Obtém a Chave do Supabase (Anon Key ou Publishable Key) consultando todas as fontes possíveis:
+ * 1. Runtime cache (/api/config)
+ * 2. Vite import.meta.env com suporte a nomes modernos e legados
+ * 3. window.__ENV__ ou window globals
+ */
+export function getSupabaseAnonKey(): string {
+  if (runtimeConfig?.anonKey) {
+    return runtimeConfig.anonKey;
+  }
+
+  const candidates: (string | undefined | null)[] = [
+    // Nomes com prefixo VITE_
+    import.meta.env.VITE_SUPABASE_ANON_KEY,
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    import.meta.env.VITE_SUPABASE_KEY,
+    import.meta.env.VITE_SUPABASE_PUBLIC_KEY,
+    // Nomes diretos (SUPABASE_)
+    import.meta.env.SUPABASE_ANON_KEY,
+    import.meta.env.SUPABASE_PUBLISHABLE_KEY,
+    import.meta.env.SUPABASE_KEY,
+    // Nomes do Next.js frequentemente configurados na Vercel
+    import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    // Globals no window
+    typeof window !== 'undefined' ? (window as any).__ENV__?.VITE_SUPABASE_ANON_KEY : '',
+    typeof window !== 'undefined' ? (window as any).__ENV__?.VITE_SUPABASE_PUBLISHABLE_KEY : '',
+    typeof window !== 'undefined' ? (window as any).VITE_SUPABASE_ANON_KEY : '',
+    typeof window !== 'undefined' ? (window as any).VITE_SUPABASE_PUBLISHABLE_KEY : '',
+  ];
+
+  for (const cand of candidates) {
+    const norm = normalizeSupabaseKey(cand);
+    if (norm) return norm;
+  }
+
+  return '';
+}
 
 /**
  * Verifica se as credenciais do Supabase estão configuradas de forma válida no ambiente.
- * Valida que não são placeholders, strings vazias ou valores de template.
  */
 export function isSupabaseConfigured(): boolean {
-  if (!rawSupabaseUrl || !rawSupabaseAnonKey) return false;
-  if (rawSupabaseUrl === 'MY_SUPABASE_URL' || rawSupabaseAnonKey === 'MY_SUPABASE_ANON_KEY') return false;
-  if (rawSupabaseUrl.includes('placeholder') || rawSupabaseAnonKey.includes('placeholder')) return false;
-  if (rawSupabaseUrl.includes('your-project-id') || rawSupabaseAnonKey.includes('your-anon-public-key')) return false;
-  if (!rawSupabaseUrl.startsWith('http://') && !rawSupabaseUrl.startsWith('https://')) return false;
-  return true;
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
+  return Boolean(url && key);
+}
+
+/**
+ * Garante que a configuração do Supabase foi verificada.
+ * Se ainda não estiver configurada no build estático, tenta buscar dinamicamente
+ * do endpoint de runtime /api/config (disponível na Vercel e no servidor Node).
+ */
+export async function ensureSupabaseConfigured(): Promise<boolean> {
+  if (isSupabaseConfigured()) {
+    return true;
+  }
+
+  // Tenta obter do endpoint /api/config em tempo de execução
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.configured && data.url && data.anonKey) {
+          const normUrl = normalizeSupabaseUrl(data.url);
+          const normKey = normalizeSupabaseKey(data.anonKey);
+          if (normUrl && normKey) {
+            runtimeConfig = { url: normUrl, anonKey: normKey };
+            currentClient = null; // invalida cache do cliente para recriar
+            console.log('[Supabase Client] Configuração carregada dinamicamente via /api/config com sucesso.');
+            return true;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Supabase Client] Consulta a /api/config ignorada:', err);
+    }
+  }
+
+  return isSupabaseConfigured();
 }
 
 /**
@@ -40,10 +196,12 @@ export function isSupabaseConfigured(): boolean {
  */
 export function getSupabaseConfigStatus(): { configured: boolean; url: string; hasKey: boolean; error?: string } {
   const configured = isSupabaseConfigured();
+  const url = getSupabaseUrl();
+  const hasKey = Boolean(getSupabaseAnonKey());
   return {
     configured,
-    url: rawSupabaseUrl,
-    hasKey: Boolean(rawSupabaseAnonKey),
+    url,
+    hasKey,
     error: configured
       ? undefined
       : 'Supabase Storage não está configurado neste ambiente. Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.',
@@ -71,21 +229,49 @@ export function isUUID(str?: string | null): boolean {
   return uuidRegex.test(str.trim());
 }
 
+// Instância interna dinâmica do cliente Supabase
+let currentClient: SupabaseClient | null = null;
+let currentClientUrl = '';
+let currentClientKey = '';
+
 /**
- * Instância oficial do cliente Supabase para o Frontend.
- * Utiliza EXCLUSIVAMENTE a chave anônima pública (ANON KEY), nunca a Service Role Key.
+ * Cria ou recupera a instância ativa do cliente Supabase.
+ * Recria automaticamente se os parâmetros de configuração forem atualizados em tempo de execução.
  */
-export const supabase: SupabaseClient = createClient(
-  isSupabaseConfigured() ? rawSupabaseUrl : 'https://placeholder.supabase.co',
-  isSupabaseConfigured() ? rawSupabaseAnonKey : 'placeholder-anon-key',
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
+export function getSupabaseClient(): SupabaseClient {
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
+
+  if (!currentClient || currentClientUrl !== url || currentClientKey !== key) {
+    currentClientUrl = url;
+    currentClientKey = key;
+    currentClient = createClient(
+      url || 'https://placeholder.supabase.co',
+      key || 'placeholder-anon-key',
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      }
+    );
   }
-);
+  return currentClient;
+}
+
+/**
+ * Proxy seguro para exportação singleton de 'supabase'.
+ * Encaminha todas as chamadas de propriedades e métodos para o cliente ativo, garantindo
+ * que qualquer atualização de credenciais seja refletida imediatamente.
+ */
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabaseClient();
+    const val = (client as any)[prop];
+    return typeof val === 'function' ? val.bind(client) : val;
+  },
+});
 
 /**
  * Obtém o UUID real do usuário autenticado no Supabase Auth.
@@ -93,18 +279,20 @@ export const supabase: SupabaseClient = createClient(
  * Garante compatibilidade total com as políticas RLS do bucket 'clipo-videos' ((storage.foldername(name))[1] = auth.uid()::text).
  */
 export async function getEffectiveSupabaseUserId(): Promise<string | null> {
+  await ensureSupabaseConfigured();
   if (!isSupabaseConfigured()) {
     return null;
   }
 
   try {
-    const { data: sessionData } = await supabase.auth.getSession();
+    const client = getSupabaseClient();
+    const { data: sessionData } = await client.auth.getSession();
     const sessionUserId = sessionData?.session?.user?.id;
     if (sessionUserId && isUUID(sessionUserId)) {
       return sessionUserId;
     }
 
-    const { data: userData } = await supabase.auth.getUser();
+    const { data: userData } = await client.auth.getUser();
     const userId = userData?.user?.id;
     if (userId && isUUID(userId)) {
       return userId;
@@ -119,7 +307,7 @@ export async function getEffectiveSupabaseUserId(): Promise<string | null> {
 /**
  * Compatibilidade legada com getEffectiveUserId.
  * Se houver sessão Supabase, retorna o UUID.
- * Caso contrário, retorna null se for para o Supabase Storage.
+ * Caso contrário, retorna 'unauthenticated'.
  */
 export async function getEffectiveUserId(): Promise<string> {
   const supaId = await getEffectiveSupabaseUserId();
@@ -132,8 +320,10 @@ export async function getEffectiveUserId(): Promise<string> {
  */
 export async function getEffectiveAccessToken(): Promise<string> {
   try {
+    await ensureSupabaseConfigured();
     if (isSupabaseConfigured()) {
-      const { data } = await supabase.auth.getSession();
+      const client = getSupabaseClient();
+      const { data } = await client.auth.getSession();
       if (data?.session?.access_token) {
         return data.session.access_token;
       }
@@ -141,7 +331,7 @@ export async function getEffectiveAccessToken(): Promise<string> {
   } catch (err) {
     console.warn('Erro ao obter token do Supabase:', err);
   }
-  return rawSupabaseAnonKey;
+  return getSupabaseAnonKey();
 }
 
 /**
@@ -193,10 +383,12 @@ export async function createSignedVideoUrl(
   storagePath: string,
   expiresInSeconds: number = 86400
 ): Promise<string | null> {
+  await ensureSupabaseConfigured();
   if (!isSupabaseConfigured()) return null;
 
   try {
-    const { data, error } = await supabase.storage
+    const client = getSupabaseClient();
+    const { data, error } = await client.storage
       .from(SUPABASE_VIDEOS_BUCKET)
       .createSignedUrl(storagePath, expiresInSeconds);
 
@@ -223,11 +415,15 @@ export async function uploadVideoToSupabaseStorage(
   fileName: string,
   options: UploadOptions = {}
 ): Promise<SupabaseUploadResult> {
+  await ensureSupabaseConfigured();
   if (!isSupabaseConfigured()) {
     throw new Error(
       'Supabase Storage não está configurado neste ambiente. Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.'
     );
   }
+
+  const supabaseUrl = getSupabaseUrl();
+  const supabaseKey = getSupabaseAnonKey();
 
   // Requisito 7: Obter UUID real do usuário autenticado no Supabase
   let supabaseUserId: string | null = null;
@@ -254,7 +450,7 @@ export async function uploadVideoToSupabaseStorage(
     // UPLOAD RESUMÍVEL / TUS DO SUPABASE STORAGE (> 6 MB)
     // -------------------------------------------------------------
     const accessToken = await getEffectiveAccessToken();
-    const tusEndpoint = `${rawSupabaseUrl}/storage/v1/upload/resumable`;
+    const tusEndpoint = `${supabaseUrl}/storage/v1/upload/resumable`;
 
     return new Promise((resolve, reject) => {
       let tusUpload: tus.Upload | null = null;
@@ -263,7 +459,7 @@ export async function uploadVideoToSupabaseStorage(
         endpoint: tusEndpoint,
         retryDelays: [0, 1000, 3000, 5000, 10000],
         headers: {
-          apikey: rawSupabaseAnonKey,
+          apikey: supabaseKey,
           Authorization: `Bearer ${accessToken}`,
           'x-upsert': 'true',
         },
@@ -313,7 +509,8 @@ export async function uploadVideoToSupabaseStorage(
     // -------------------------------------------------------------
     // UPLOAD DIRETO DO SUPABASE (Para arquivos menores <= 6 MB)
     // -------------------------------------------------------------
-    const { error } = await supabase.storage
+    const client = getSupabaseClient();
+    const { error } = await client.storage
       .from(SUPABASE_VIDEOS_BUCKET)
       .upload(storagePath, file, {
         contentType: file.type || 'video/mp4',
@@ -343,10 +540,12 @@ export async function uploadVideoToSupabaseStorage(
  * Remove um arquivo de vídeo do bucket Supabase Storage
  */
 export async function deleteVideoFromSupabaseStorage(storagePath: string): Promise<boolean> {
+  await ensureSupabaseConfigured();
   if (!isSupabaseConfigured() || !storagePath) return false;
 
   try {
-    const { error } = await supabase.storage
+    const client = getSupabaseClient();
+    const { error } = await client.storage
       .from(SUPABASE_VIDEOS_BUCKET)
       .remove([storagePath]);
 

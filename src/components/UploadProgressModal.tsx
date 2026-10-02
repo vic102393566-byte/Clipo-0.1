@@ -26,6 +26,7 @@ import { currentStorageProvider, getStoredPlan, PLANS_CONFIG } from '../services
 import { authService, DEFAULT_DEMO_USER } from '../services/authService';
 import {
   isSupabaseConfigured,
+  ensureSupabaseConfigured,
   isProductionEnvironment,
   uploadVideoToSupabaseStorage,
   getEffectiveSupabaseUserId,
@@ -113,7 +114,12 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
     // 2. DETECÇÃO DE AMBIENTE E SUPABASE STORAGE (Requisitos 3, 4 e 5)
     // -------------------------------------------------------------------------
     const inProduction = isProductionEnvironment();
-    const supabaseReady = isSupabaseConfigured();
+    let supabaseReady = isSupabaseConfigured();
+
+    // Se ainda não estiver pronto pelo build estático, tenta carregar do endpoint de runtime (/api/config)
+    if (!supabaseReady) {
+      supabaseReady = await ensureSupabaseConfigured();
+    }
 
     // Se estiver em produção e o Supabase não estiver configurado, NÃO faz fallback silencioso!
     if (inProduction && !supabaseReady) {
