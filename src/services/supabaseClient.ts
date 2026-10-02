@@ -209,15 +209,36 @@ export function getSupabaseConfigStatus(): { configured: boolean; url: string; h
 }
 
 /**
- * Detecta se a aplicação está rodando em ambiente de produção (Vercel, Cloud Run, deploy real)
+ * Detecta se a aplicação está rodando na sandbox de desenvolvimento/preview do Google AI Studio
  */
-export function isProductionEnvironment(): boolean {
-  if (import.meta.env.PROD) return true;
+export function isAIStudioSandbox(): boolean {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
-    return host !== 'localhost' && host !== '127.0.0.1' && !host.endsWith('.local');
+    return (
+      host.includes('ais-dev-') ||
+      host.includes('ais-pre-') ||
+      host.includes('us-east1.run.app') ||
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host.endsWith('.local')
+    );
   }
   return false;
+}
+
+/**
+ * Detecta se a aplicação está rodando em ambiente de produção real (deploy na Vercel ou domínio próprio).
+ * A sandbox do Google AI Studio (ais-dev-*.run.app / ais-pre-*.run.app) é um ambiente de desenvolvimento e testes.
+ */
+export function isProductionEnvironment(): boolean {
+  if (isAIStudioSandbox()) {
+    return false;
+  }
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    return host.endsWith('.vercel.app') || (!host.includes('localhost') && !host.includes('127.0.0.1'));
+  }
+  return import.meta.env.PROD;
 }
 
 /**
