@@ -582,7 +582,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#0A0A0A] text-white font-sans">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
       {/* Hidden Native File Input for Video Upload */}
       <input
         ref={fileInputRef}

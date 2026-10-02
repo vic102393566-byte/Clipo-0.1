@@ -60,6 +60,10 @@ export interface Translations {
     portuguese: string;
     english: string;
     currentLanguageName: string;
+    theme: string;
+    themeLight: string;
+    themeDark: string;
+    themeSystem: string;
   };
   dashboard: {
     metrics: {

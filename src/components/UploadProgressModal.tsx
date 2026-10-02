@@ -21,10 +21,16 @@ import {
   UploadCloud
 } from 'lucide-react';
 import { formatFileSize, extractVideoMetadata, parseDurationToSeconds } from '../utils/videoUtils';
-import { VideoItem } from '../types';
-import { currentStorageProvider } from '../services/storageService';
+import { VideoItem, PlanTier } from '../types';
+import { currentStorageProvider, getStoredPlan, PLANS_CONFIG } from '../services/storageService';
 import { authService, DEFAULT_DEMO_USER } from '../services/authService';
-import { isSupabaseConfigured, uploadVideoToSupabaseStorage } from '../services/supabaseClient';
+import {
+  isSupabaseConfigured,
+  isProductionEnvironment,
+  uploadVideoToSupabaseStorage,
+  getEffectiveSupabaseUserId,
+  categorizeUploadError,
+} from '../services/supabaseClient';
 import { useI18n } from '../i18n/I18nContext';
 
 interface UploadProgressModalProps {
@@ -68,7 +74,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const uploadFileToServer = (fileToUpload: File) => {
+  const uploadFileToServer = async (fileToUpload: File) => {
     if (xhrRef.current) {
       xhrRef.current.abort();
       xhrRef.current = null;
@@ -85,101 +91,143 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
 
     const cleanTitle = fileToUpload.name.replace(/\.[^/.]+$/, '');
     const activeUser = authService.getCurrentUser() || DEFAULT_DEMO_USER;
+    const userPlanTier: PlanTier = getStoredPlan(activeUser.id) || (activeUser.planId as PlanTier) || 'pro';
+    const plan = PLANS_CONFIG[userPlanTier] || PLANS_CONFIG.pro;
     const videoId = `vid-${Date.now()}`;
 
-    // =========================================================================
-    // PROVEDOR 1: SUPABASE STORAGE (BUCKET PRIVADO: clipo-videos)
-    // Se configurado, envia diretamente para o Supabase Storage via TUS / Direct
-    // =========================================================================
-    if (isSupabaseConfigured()) {
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
-      (async () => {
-        try {
-          console.log(`[SUPABASE STORAGE] Iniciando upload para o bucket 'clipo-videos'...`);
-          // Extração rápida de thumbnail e duração no navegador
-          const meta = await extractVideoMetadata(fileToUpload);
-
-          // Upload com suporte automático a TUS Resumable para arquivos grandes
-          const result = await uploadVideoToSupabaseStorage(fileToUpload, fileToUpload.name, {
-            userId: activeUser.id,
-            signal: abortController.signal,
-            onProgress: (percent) => {
-              setProgress(percent);
-              if (percent >= 90 && percent < 100) {
-                setStatus('processing');
-              }
-            },
-          });
-
-          setProgress(100);
-          setStatus('completed');
-
-          const newVideo: VideoItem = {
-            id: videoId,
-            userId: activeUser.id,
-            title: cleanTitle || 'Vídeo sem título',
-            thumbnail: meta.thumbnail || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&auto=format&fit=crop&q=80',
-            videoUrl: result.signedUrl,
-            storagePath: result.storagePath,
-            duration: meta.duration || '1:00',
-            durationSeconds: parseDurationToSeconds(meta.duration),
-            uploadedAt: 'Hoje, agora há pouco',
-            createdAt: new Date().toISOString(),
-            viewsTotal: 0,
-            publishedCount: 0,
-            status: 'disponivel',
-            fileSize: formatFileSize(fileToUpload.size),
-            sizeBytes: fileToUpload.size,
-            uploadedBy: activeUser.email || 'vicente@clipo.io',
-            storageProvider: 'Supabase Storage (clipo-videos)',
-            description: '',
-            hashtags: [],
-          };
-
-          setCreatedVideo(newVideo);
-          onUploadComplete(newVideo);
-
-          setGeneratedTitle(`Corte: ${cleanTitle}`);
-          setGeneratedDescription(`Vídeo gravado e otimizado com áudio e vídeo de alta qualidade.`);
-          setGeneratedHashtags('#clipo #shorts #reels #viral');
-          console.log(`[SUPABASE UPLOAD CONCLUÍDO] Vídeo finalizado com sucesso no Supabase Storage: ${result.storagePath}`);
-        } catch (err: any) {
-          if (abortController.signal.aborted) {
-            console.warn('[UPLOAD CANCELADO]: Processamento interrompido pelo usuário.');
-            return;
-          }
-          console.error('[ERRO SUPABASE STORAGE]:', err);
-          setStatus('error');
-          setErrorMessage(err.message || 'Falha no upload para o Supabase Storage — Tentar novamente');
-        } finally {
-          abortControllerRef.current = null;
-        }
-      })();
+    // -------------------------------------------------------------------------
+    // 1. VERIFICAÇÃO LOCAL DE LIMITES DO PLANO ATIVO (Requisito 9 e 11)
+    // -------------------------------------------------------------------------
+    if (fileToUpload.size > plan.maxFileSizeBytes) {
+      setStatus('error');
+      const fileFormatted = formatFileSize(fileToUpload.size);
+      const upgradeMsg = userPlanTier === 'basico' ? 'Pro (até 10 GB)' : 'Premium (até 25 GB)';
+      const msg = isEn
+        ? `File size (${fileFormatted}) exceeds the ${plan.name} plan limit (${plan.labelMaxFileSize}). Upgrade to ${upgradeMsg} to upload larger videos.`
+        : `Arquivo muito grande para o plano ativo (${plan.name} permite até ${plan.labelMaxFileSize}). O arquivo enviado possui ${fileFormatted}. Faça upgrade para o plano ${upgradeMsg} para enviar arquivos maiores.`;
+      setErrorMessage(msg);
       return;
     }
 
-    // =========================================================================
-    // PROVEDOR 2: LOCAL SERVER / DESENVOLVIMENTO
-    // Fallback caso as chaves do Supabase ainda não estejam configuradas no .env
-    // =========================================================================
+    // -------------------------------------------------------------------------
+    // 2. DETECÇÃO DE AMBIENTE E SUPABASE STORAGE (Requisitos 3, 4 e 5)
+    // -------------------------------------------------------------------------
+    const inProduction = isProductionEnvironment();
+    const supabaseReady = isSupabaseConfigured();
+
+    // Se estiver em produção e o Supabase não estiver configurado, NÃO faz fallback silencioso!
+    if (inProduction && !supabaseReady) {
+      setStatus('error');
+      const msg = isEn
+        ? 'Supabase Storage is not configured in this environment. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+        : 'Supabase Storage não está configurado neste ambiente. Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.';
+      setErrorMessage(msg);
+      console.error('[PRODUÇÃO]: Supabase Storage não configurado. Fallback para /api/videos/upload bloqueado em produção.');
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. FLUXO OFICIAL: SUPABASE STORAGE (TUS para > 6 MB, SDK para <= 6 MB)
+    // -------------------------------------------------------------------------
+    if (supabaseReady) {
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      try {
+        console.log(`[SUPABASE STORAGE] Iniciando upload direto para o bucket 'clipo-videos'...`);
+
+        // Requisito 7 & 11: Obter UUID real do usuário autenticado no Supabase
+        const supabaseUserId = await getEffectiveSupabaseUserId();
+
+        if (!supabaseUserId) {
+          throw new Error(
+            isEn
+              ? 'Active Supabase session not found. Please log in to upload videos to secure storage.'
+              : 'Sessão de autenticação do Supabase não encontrada. Faça login para enviar vídeos ao armazenamento seguro (RLS).'
+          );
+        }
+
+        console.log(`[SUPABASE STORAGE] Usuário autenticado com UUID: ${supabaseUserId}`);
+
+        // Extração de metadados no navegador
+        const meta = await extractVideoMetadata(fileToUpload);
+
+        // Upload direto via Supabase Storage (com TUS para arquivos > 6 MB)
+        const result = await uploadVideoToSupabaseStorage(fileToUpload, fileToUpload.name, {
+          userId: supabaseUserId,
+          signal: abortController.signal,
+          onProgress: (percent) => {
+            setProgress(percent);
+            if (percent >= 90 && percent < 100) {
+              setStatus('processing');
+            }
+          },
+        });
+
+        setProgress(100);
+        setStatus('completed');
+
+        const newVideo: VideoItem = {
+          id: videoId,
+          userId: supabaseUserId,
+          title: cleanTitle || 'Vídeo sem título',
+          thumbnail: meta.thumbnail || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&auto=format&fit=crop&q=80',
+          videoUrl: result.signedUrl,
+          storagePath: result.storagePath,
+          duration: meta.duration || '1:00',
+          durationSeconds: parseDurationToSeconds(meta.duration),
+          uploadedAt: 'Hoje, agora há pouco',
+          createdAt: new Date().toISOString(),
+          viewsTotal: 0,
+          publishedCount: 0,
+          status: 'disponivel',
+          fileSize: formatFileSize(fileToUpload.size),
+          sizeBytes: fileToUpload.size,
+          uploadedBy: activeUser.email || 'vicente@clipo.io',
+          storageProvider: 'Supabase Storage (clipo-videos)',
+          description: '',
+          hashtags: [],
+        };
+
+        setCreatedVideo(newVideo);
+        onUploadComplete(newVideo);
+
+        setGeneratedTitle(`Corte: ${cleanTitle}`);
+        setGeneratedDescription(`Vídeo gravado e otimizado com áudio e vídeo de alta qualidade.`);
+        setGeneratedHashtags('#clipo #shorts #reels #viral');
+        console.log(`[SUPABASE UPLOAD CONCLUÍDO] Vídeo finalizado com sucesso no Supabase Storage: ${result.storagePath}`);
+      } catch (err: any) {
+        if (abortController.signal.aborted) {
+          console.warn('[UPLOAD CANCELADO]: Processamento interrompido pelo usuário.');
+          return;
+        }
+        console.error('[ERRO SUPABASE STORAGE]:', err);
+        setStatus('error');
+        setErrorMessage(categorizeUploadError(err, { fileSizeBytes: fileToUpload.size, planTier: userPlanTier, isEn }));
+      } finally {
+        abortControllerRef.current = null;
+      }
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. MODO DESENVOLVIMENTO LOCAL (Somente localhost quando Supabase não configurado)
+    // -------------------------------------------------------------------------
+    console.warn('[DEV LOCAL]: Supabase não configurado. Utilizando endpoint local /api/videos/upload para testes locais.');
 
     const formData = new FormData();
     formData.append('videoFile', fileToUpload);
     formData.append('userId', activeUser.id);
     formData.append('title', cleanTitle);
-    formData.append('planTier', activeUser.planId || 'pro');
+    formData.append('planTier', userPlanTier);
     formData.append('uploadedBy', activeUser.email || 'vicente@clipo.io');
 
-    console.log(`[UPLOAD INICIADO] Arquivo: ${fileToUpload.name} | Tamanho: ${fileToUpload.size} bytes`);
+    console.log(`[UPLOAD INICIADO LOCAL] Arquivo: ${fileToUpload.name} | Tamanho: ${fileToUpload.size} bytes`);
 
     const xhr = new XMLHttpRequest();
     xhrRef.current = xhr;
-    // Timeout estendido para 30 minutos, permitindo envio de vídeos longos de até 2 horas sem interrupção prematura
-    xhr.timeout = 30 * 60 * 1000; 
+    xhr.timeout = 30 * 60 * 1000;
 
-    // Acompanha bytes reais transferidos para o backend (5% a 85%)
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && event.total > 0) {
         const percent = Math.min(85, Math.max(5, Math.round((event.loaded / event.total) * 85)));
@@ -187,11 +235,10 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
       }
     };
 
-    // Quando todos os bytes foram transferidos ao backend
     xhr.upload.onload = () => {
       setProgress(90);
       setStatus('processing');
-      console.log('[UPLOAD RECEBIDO] Dados enviados com sucesso. Processando e validando com FFprobe...');
+      console.log('[UPLOAD RECEBIDO] Dados enviados com sucesso. Processando e validando...');
     };
 
     xhr.onload = () => {
@@ -228,7 +275,7 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
           fileSize: serverVideo.fileSize || formatFileSize(fileToUpload.size),
           sizeBytes: serverVideo.sizeBytes || fileToUpload.size,
           uploadedBy: activeUser.email || 'vicente@clipo.io',
-          storageProvider: 'Clipo Video Engine (FFmpeg)',
+          storageProvider: 'Clipo Video Engine (Local)',
           description: '',
           hashtags: [],
         };
@@ -239,12 +286,12 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
         setGeneratedTitle(`Corte: ${cleanTitle}`);
         setGeneratedDescription(`Vídeo gravado e otimizado com áudio e vídeo de alta qualidade.`);
         setGeneratedHashtags('#clipo #shorts #reels #viral');
-        console.log(`[UPLOAD CONCLUÍDO] Vídeo finalizado com sucesso no cliente: ${newVideo.id}`);
+        console.log(`[UPLOAD CONCLUÍDO LOCAL] Vídeo finalizado com sucesso: ${newVideo.id}`);
       } else {
-        const errorMsg = data?.error || (xhr.status === 413 ? 'Arquivo muito grande para o plano ativo. Faça upgrade para enviar arquivos maiores.' : `Erro HTTP ${xhr.status} no processamento do vídeo.`);
-        console.error('[ERRO NO UPLOAD]:', errorMsg);
+        const errorMsg = data?.error || categorizeUploadError({ status: xhr.status, message: data?.error }, { fileSizeBytes: fileToUpload.size, planTier: userPlanTier, isEn });
+        console.error('[ERRO NO UPLOAD LOCAL]:', errorMsg);
         setStatus('error');
-        setErrorMessage(errorMsg || 'Falha no upload — Tentar novamente');
+        setErrorMessage(errorMsg || (isEn ? 'Upload failed — Please try again' : 'Falha no upload — Tentar novamente'));
       }
     };
 
@@ -252,14 +299,14 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
       xhrRef.current = null;
       console.error('[ERRO NO UPLOAD]: Falha de conexão durante o upload.');
       setStatus('error');
-      setErrorMessage('Falha na conexão durante o upload — Tentar novamente');
+      setErrorMessage(categorizeUploadError(new Error('Network connection failed'), { isEn }));
     };
 
     xhr.ontimeout = () => {
       xhrRef.current = null;
       console.error('[ERRO NO UPLOAD]: Tempo limite de upload esgotado.');
       setStatus('error');
-      setErrorMessage('Tempo limite de rede esgotado durante o envio de vídeo longo — Tentar novamente');
+      setErrorMessage(isEn ? 'Network timeout during video upload — Please try again' : 'Tempo limite de rede esgotado durante o envio — Tentar novamente');
     };
 
     xhr.onabort = () => {

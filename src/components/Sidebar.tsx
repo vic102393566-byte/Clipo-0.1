@@ -10,11 +10,12 @@ import {
   Settings,
   ChevronDown,
   X,
+  LogOut,
   PlusCircle,
-  ExternalLink,
-  LogOut
 } from 'lucide-react';
 import { TabType } from '../types';
+import { StorageUsageData } from '../services/storageService';
+import { UserProfileSettings } from '../services/userSettingsService';
 import { useI18n } from '../i18n/I18nContext';
 
 interface SidebarProps {
@@ -24,17 +25,9 @@ interface SidebarProps {
   setIsOpen: (open: boolean) => void;
   onOpenUpload: () => void;
   onLogout?: () => void;
-  storageUsage?: {
-    usedFormatted: string;
-    limitFormatted: string;
-    percentUsed: number;
-  };
+  storageUsage?: StorageUsageData;
   activePlanTier?: string;
-  userProfile?: {
-    name: string;
-    email: string;
-    avatarUrl: string;
-  };
+  userProfile?: UserProfileSettings;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -45,7 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenUpload,
   onLogout,
   storageUsage,
-  activePlanTier = 'Pro',
+  activePlanTier = 'PRO',
   userProfile,
 }) => {
   const { t } = useI18n();
@@ -55,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const userName = userProfile?.name || 'Vicente Silva';
   const userEmail = userProfile?.email || 'vic102393566@gmail.com';
   const userAvatar = userProfile?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80';
+  
   const navItems: { id: TabType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard },
     { id: 'videos', label: t.nav.videos, icon: Film },
@@ -75,25 +69,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* Backdrop for outside click dismissal on both desktop and mobile */}
       <div
-        className={`fixed inset-0 z-40 bg-black/75 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${
+        className={`fixed inset-0 z-40 bg-black/60 dark:bg-black/80 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${
           isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         onClick={() => setIsOpen(false)}
         aria-hidden="true"
       />
 
-      {/* Sidebar container - completely hidden by default, slides in as secondary menu */}
+      {/* Sidebar container - slides in as drawer */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex w-72 sm:w-80 flex-col border-r border-[#27272A] bg-[#151515] shadow-2xl transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 bottom-0 left-0 z-50 flex w-72 sm:w-80 flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0D1322] shadow-2xl transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
         }`}
-        aria-label="Menu secundário de navegação"
+        aria-label="Menu de navegação"
       >
         {/* Brand Header */}
-        <div className="flex h-18 items-center justify-between border-b border-[#27272A] px-6">
+        <div className="flex h-18 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6">
           <div className="flex items-center gap-3">
             {/* Clipo Geometric Icon */}
-            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#F97316] via-[#EA580C] to-purple-800 shadow-lg shadow-[#F97316]/20">
+            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 shadow-lg shadow-indigo-500/25">
               <svg
                 width="20"
                 height="20"
@@ -115,14 +109,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </svg>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xl font-bold tracking-tight text-white">clipo</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-[#F97316]"></span>
+              <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">clipo</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
             </div>
           </div>
 
           <button
             onClick={() => setIsOpen(false)}
-            className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#0A0A0A] hover:text-white transition"
+            className="rounded-lg p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition"
             aria-label="Fechar menu"
           >
             <X className="h-5 w-5" />
@@ -136,28 +130,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
               setActiveTab('configuracoes');
               setIsOpen(false);
             }}
-            className="group flex w-full items-center justify-between rounded-xl border border-[#27272A] bg-[#0A0A0A] p-2.5 text-left transition hover:border-[#3F3F46] hover:bg-[#1E1E1E]"
+            className="group flex w-full items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#131A29] p-2.5 text-left transition hover:border-indigo-500/50 hover:bg-slate-100 dark:hover:bg-slate-800/80"
           >
             <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr from-zinc-800 to-zinc-700 text-xs font-semibold text-white">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-xs font-semibold text-white">
                 VS
               </div>
               <div className="truncate">
-                <p className="truncate text-xs font-medium text-white">{userName}</p>
-                <p className="text-[11px] text-[#FDBA74]">
+                <p className="truncate text-xs font-medium text-slate-900 dark:text-white">{userName}</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   {activePlanTier} · 4 {t.nav.activeChannelsCount}
                 </p>
               </div>
             </div>
-            <ChevronDown className="h-4 w-4 shrink-0 text-[#FDBA74] group-hover:text-white" />
+            <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-white" />
           </button>
         </div>
 
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto px-3 py-2">
-          <div className="mb-2 px-3 text-[11px] font-medium tracking-wider text-[#FDBA74] uppercase">
+          <div className="mb-2 px-3 text-[11px] font-semibold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
             {t.nav.navigation}
           </div>
+
           <nav className="space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -168,16 +163,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => handleSelectTab(item.id)}
                   className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                     isActive
-                      ? 'bg-[#F97316]/15 text-white shadow-sm'
-                      : 'text-[#FDBA74] hover:bg-[#1E1E1E] hover:text-white'
+                      ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold shadow-sm'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   {isActive && (
-                    <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-[#F97316]" />
+                    <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-indigo-600 dark:bg-indigo-500" />
                   )}
                   <Icon
                     className={`h-4 w-4 shrink-0 transition-colors ${
-                      isActive ? 'text-[#F97316]' : 'text-[#FDBA74] group-hover:text-white'
+                      isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white'
                     }`}
                   />
                   <span className="truncate">{item.label}</span>
@@ -193,7 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onOpenUpload();
                 setIsOpen(false);
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#F97316] py-2.5 px-4 text-xs font-semibold text-white shadow-md shadow-[#F97316]/25 transition hover:bg-[#EA580C] active:scale-[0.99] cursor-pointer"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 py-2.5 px-4 text-xs font-semibold text-white shadow-md shadow-indigo-600/20 transition active:scale-[0.99] cursor-pointer"
             >
               <PlusCircle className="h-4 w-4" />
               <span>{t.nav.uploadNewVideo}</span>
@@ -202,27 +197,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Storage Widget & User Footer */}
-        <div className="border-t border-[#27272A] p-4 space-y-4 bg-[#0A0A0A]/50">
+        <div className="border-t border-slate-200 dark:border-slate-800 p-4 space-y-4 bg-slate-50/50 dark:bg-[#0B0F17]/50">
           {/* Storage Bar */}
           <div
             onClick={() => {
               setActiveTab('armazenamento');
               setIsOpen(false);
             }}
-            className="cursor-pointer rounded-xl border border-[#27272A] bg-[#151515] p-3 transition hover:border-[#3F3F46] hover:bg-[#1A1A1A]"
+            className="cursor-pointer rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131A29] p-3 transition hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm"
           >
             <div className="flex items-center justify-between text-xs">
-              <span className="text-white font-medium">{t.nav.storage}</span>
-              <span className="font-mono text-[#FDBA74] tabular-nums">
+              <span className="text-slate-900 dark:text-white font-medium">{t.nav.storage}</span>
+              <span className="font-mono text-slate-500 dark:text-slate-400 tabular-nums">
                 {displayUsed} / {displayLimit}
               </span>
             </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#27272A]">
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${
                   displayPercent > 90
                     ? 'bg-gradient-to-r from-rose-500 to-amber-500'
-                    : 'bg-gradient-to-r from-[#F97316] to-[#9333EA]'
+                    : 'bg-gradient-to-r from-indigo-500 to-violet-600'
                 }`}
                 style={{ width: `${Math.min(displayPercent, 100)}%` }}
               />
@@ -236,11 +231,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 src={userAvatar}
                 alt={userName}
                 referrerPolicy="no-referrer"
-                className="h-9 w-9 rounded-full object-cover ring-1 ring-[#27272A]"
+                className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-800"
               />
               <div className="truncate">
-                <p className="truncate text-xs font-semibold text-white">{userName}</p>
-                <p className="truncate text-[11px] text-[#FDBA74]">{userEmail}</p>
+                <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">{userName}</p>
+                <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">{userEmail}</p>
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
@@ -249,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   setActiveTab('configuracoes');
                   setIsOpen(false);
                 }}
-                className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-[#1E1E1E] hover:text-white"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-white transition"
                 title={t.header.settings}
               >
                 <Settings className="h-4 w-4" />
@@ -260,7 +255,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onLogout();
                     setIsOpen(false);
                   }}
-                  className="rounded-lg p-1.5 text-[#FDBA74] hover:bg-rose-500/10 hover:text-rose-400 transition"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-500/10 hover:text-rose-500 transition"
                   title={t.nav.logout}
                 >
                   <LogOut className="h-4 w-4" />

@@ -93,6 +93,10 @@ export const enUS: Translations = {
     portuguese: 'Português (Brasil)',
     english: 'English (US)',
     currentLanguageName: 'EN',
+    theme: 'Theme',
+    themeLight: 'Light',
+    themeDark: 'Dark',
+    themeSystem: 'System / Automatic',
   },
   dashboard: {
     metrics: {

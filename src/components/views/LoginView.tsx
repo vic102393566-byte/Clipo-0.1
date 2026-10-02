@@ -101,8 +101,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!registerName.trim()) {
-      setErrorMessage(isEn ? 'Please enter your full name.' : 'Por favor, informe seu nome completo.');
+    const cleanName = registerName.trim();
+    const nameParts = cleanName.split(/\s+/).filter(Boolean);
+
+    if (nameParts.length < 2 || nameParts.some((part) => part.length < 2)) {
+      setErrorMessage('Digite seu nome completo (nome e sobrenome).');
       return;
     }
 
@@ -124,7 +127,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setIsLoading(true);
 
     try {
-      const result = await authService.register(registerEmail, registerPassword, registerName);
+      const result = await authService.register(cleanName, registerEmail, registerPassword);
       setIsLoading(false);
 
       if (result.success && result.user) {

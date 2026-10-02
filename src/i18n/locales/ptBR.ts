@@ -93,6 +93,10 @@ export const ptBR: Translations = {
     portuguese: 'Português (Brasil)',
     english: 'English (US)',
     currentLanguageName: 'PT',
+    theme: 'Tema',
+    themeLight: 'Claro',
+    themeDark: 'Escuro',
+    themeSystem: 'Sistema / Automático',
   },
   dashboard: {
     metrics: {

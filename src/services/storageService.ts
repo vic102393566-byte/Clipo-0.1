@@ -6,7 +6,11 @@ import {
   createSignedVideoUrl,
   deleteVideoFromSupabaseStorage,
   SUPABASE_VIDEOS_BUCKET,
-  buildUserVideoStoragePath
+  buildUserVideoStoragePath,
+  isProductionEnvironment,
+  getEffectiveSupabaseUserId,
+  categorizeUploadError,
+  isUUID,
 } from './supabaseClient';
 
 export {
@@ -15,7 +19,11 @@ export {
   createSignedVideoUrl,
   deleteVideoFromSupabaseStorage,
   SUPABASE_VIDEOS_BUCKET,
-  buildUserVideoStoragePath
+  buildUserVideoStoragePath,
+  isProductionEnvironment,
+  getEffectiveSupabaseUserId,
+  categorizeUploadError,
+  isUUID,
 };
 
 /**

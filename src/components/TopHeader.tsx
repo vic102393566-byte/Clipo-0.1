@@ -1,8 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, Globe, Upload, Settings, Check, ChevronDown } from 'lucide-react';
+import {
+  MoreHorizontal,
+  Globe,
+  Upload,
+  Settings,
+  Check,
+  ChevronDown,
+  Sun,
+  Moon,
+  Monitor
+} from 'lucide-react';
 import { TabType } from '../types';
 import { useI18n } from '../i18n/I18nContext';
 import { Language } from '../i18n/types';
+import { useTheme, ThemePreference } from '../theme/ThemeContext';
 
 interface TopHeaderProps {
   activeTab: TabType;
@@ -24,23 +35,31 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onNavigateTab,
 }) => {
   const { language, setLanguage, t } = useI18n();
-  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
-  const langMenuRef = useRef<HTMLDivElement>(null);
+  const { theme, resolvedTheme, setTheme } = useTheme();
 
-  // Close dropdown on outside click
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+
+  const langMenuRef = useRef<HTMLDivElement>(null);
+  const themeMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
         setIsLangMenuOpen(false);
       }
+      if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
+        setIsThemeMenuOpen(false);
+      }
     };
-    if (isLangMenuOpen) {
+    if (isLangMenuOpen || isThemeMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isLangMenuOpen]);
+  }, [isLangMenuOpen, isThemeMenuOpen]);
 
   const currentTabInfo = t.header.tabs[activeTab] || t.header.tabs.dashboard;
 
@@ -49,16 +68,32 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     setIsLangMenuOpen(false);
   };
 
+  const handleSelectTheme = (newTheme: ThemePreference) => {
+    setTheme(newTheme);
+    setIsThemeMenuOpen(false);
+  };
+
+  // Render icon based on current theme setting
+  const renderThemeIcon = () => {
+    if (theme === 'system') {
+      return <Monitor className="h-4 w-4 text-indigo-500" />;
+    }
+    if (resolvedTheme === 'light') {
+      return <Sun className="h-4 w-4 text-amber-500" />;
+    }
+    return <Moon className="h-4 w-4 text-indigo-400" />;
+  };
+
   return (
-    <header className="sticky top-0 z-30 flex h-18 w-full items-center justify-between border-b border-[#27272A] bg-[#0A0A0A]/90 px-4 sm:px-6 backdrop-blur-md">
+    <header className="sticky top-0 z-30 flex h-18 w-full items-center justify-between border-b border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-[#0B0F17]/90 px-4 sm:px-6 backdrop-blur-md transition-colors duration-200">
       {/* Zone 1: Three dots toggle (⋯) + Title */}
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleSidebar}
           className={`flex items-center justify-center rounded-xl border p-2.5 transition-all duration-200 active:scale-95 ${
             isOpenSidebar
-              ? 'border-[#F97316] bg-[#F97316]/20 text-[#F97316] shadow-sm shadow-[#F97316]/20'
-              : 'border-[#27272A] bg-[#151515] text-[#FDBA74] hover:border-[#F97316]/60 hover:bg-[#1E1E1E] hover:text-white'
+              ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shadow-sm shadow-indigo-500/10'
+              : 'border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:border-indigo-500/50 hover:bg-slate-200/60 dark:hover:bg-slate-800/70 hover:text-indigo-600 dark:hover:text-indigo-300'
           }`}
           title={isOpenSidebar ? 'Fechar menu (⋯)' : 'Menu (⋯)'}
           aria-label="Menu"
@@ -67,36 +102,113 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <MoreHorizontal className="h-5 w-5" />
         </button>
 
-        <h1 className="text-base font-semibold tracking-tight text-white sm:text-lg">
+        <h1 className="text-base font-semibold tracking-tight text-slate-900 dark:text-white sm:text-lg">
           {currentTabInfo.title}
         </h1>
       </div>
 
-      {/* Zone 3: Actions (Language Selector with Globe 🌐 + Settings + Upload CTA) */}
-      <div className="flex items-center gap-2.5">
-        {/* Language Selector Dropdown replacing the Bell */}
+      {/* Zone 3: Actions (Theme Selector + Language Selector + Settings + Upload CTA) */}
+      <div className="flex items-center gap-2 sm:gap-2.5">
+        {/* Theme Selector Dropdown */}
+        <div className="relative" ref={themeMenuRef}>
+          <button
+            onClick={() => {
+              setIsThemeMenuOpen((prev) => !prev);
+              setIsLangMenuOpen(false);
+            }}
+            className={`flex items-center gap-1.5 rounded-xl border p-2.5 text-xs font-medium transition ${
+              isThemeMenuOpen
+                ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                : 'border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-200/60 dark:hover:bg-slate-800/70'
+            }`}
+            title={t.header.theme || 'Tema'}
+            aria-label={t.header.theme || 'Tema'}
+            aria-expanded={isThemeMenuOpen}
+          >
+            {renderThemeIcon()}
+            <ChevronDown className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+          </button>
+
+          {isThemeMenuOpen && (
+            <div className="absolute right-0 mt-2 w-48 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131A29] p-1.5 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase border-b border-slate-100 dark:border-slate-800/80 mb-1">
+                {t.header.theme || 'Tema'}
+              </div>
+
+              <button
+                onClick={() => handleSelectTheme('light')}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
+                  theme === 'light'
+                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Sun className="h-4 w-4 text-amber-500" />
+                  <span>{t.header.themeLight || 'Claro'}</span>
+                </span>
+                {theme === 'light' && <Check className="h-3.5 w-3.5 text-indigo-500" />}
+              </button>
+
+              <button
+                onClick={() => handleSelectTheme('dark')}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
+                  theme === 'dark'
+                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Moon className="h-4 w-4 text-indigo-400" />
+                  <span>{t.header.themeDark || 'Escuro'}</span>
+                </span>
+                {theme === 'dark' && <Check className="h-3.5 w-3.5 text-indigo-500" />}
+              </button>
+
+              <button
+                onClick={() => handleSelectTheme('system')}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
+                  theme === 'system'
+                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Monitor className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                  <span>{t.header.themeSystem || 'Sistema / Automático'}</span>
+                </span>
+                {theme === 'system' && <Check className="h-3.5 w-3.5 text-indigo-500" />}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Language Selector Dropdown with Globe 🌐 */}
         <div className="relative" ref={langMenuRef}>
           <button
-            onClick={() => setIsLangMenuOpen((prev) => !prev)}
+            onClick={() => {
+              setIsLangMenuOpen((prev) => !prev);
+              setIsThemeMenuOpen(false);
+            }}
             className={`flex items-center gap-1.5 rounded-xl border p-2.5 text-xs font-medium transition ${
               isLangMenuOpen
-                ? 'border-[#F97316] bg-[#F97316]/15 text-white'
-                : 'border-[#27272A] bg-[#151515] text-[#FDBA74] hover:border-[#3F3F46] hover:bg-[#1E1E1E] hover:text-white'
+                ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                : 'border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-200/60 dark:hover:bg-slate-800/70'
             }`}
             title={t.header.selectLanguage}
             aria-label={t.header.selectLanguage}
             aria-expanded={isLangMenuOpen}
           >
-            <Globe className="h-4 w-4 text-[#F97316]" />
-            <span className="font-semibold text-[11px] tracking-wider uppercase text-white">
+            <Globe className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
+            <span className="font-semibold text-[11px] tracking-wider uppercase text-slate-800 dark:text-white">
               {language === 'pt-BR' ? 'PT' : 'EN'}
             </span>
-            <ChevronDown className="h-3 w-3 text-[#FDBA74] opacity-75" />
+            <ChevronDown className="h-3 w-3 text-slate-400 dark:text-slate-500" />
           </button>
 
           {isLangMenuOpen && (
-            <div className="absolute right-0 mt-2 w-48 rounded-xl border border-[#27272A] bg-[#151515] p-1.5 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-[#FDBA74] uppercase border-b border-[#27272A] mb-1">
+            <div className="absolute right-0 mt-2 w-48 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131A29] p-1.5 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase border-b border-slate-100 dark:border-slate-800/80 mb-1">
                 {t.header.language}
               </div>
 
@@ -104,30 +216,30 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 onClick={() => handleSelectLanguage('pt-BR')}
                 className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
                   language === 'pt-BR'
-                    ? 'bg-[#F97316]/15 text-[#F97316] font-semibold'
-                    : 'text-slate-300 hover:bg-[#202020] hover:text-white'
+                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
                 }`}
               >
                 <span className="flex items-center gap-2">
                   <span className="text-sm">🇧🇷</span>
                   <span>{t.header.portuguese}</span>
                 </span>
-                {language === 'pt-BR' && <Check className="h-3.5 w-3.5" />}
+                {language === 'pt-BR' && <Check className="h-3.5 w-3.5 text-indigo-500" />}
               </button>
 
               <button
                 onClick={() => handleSelectLanguage('en-US')}
                 className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
                   language === 'en-US'
-                    ? 'bg-[#F97316]/15 text-[#F97316] font-semibold'
-                    : 'text-slate-300 hover:bg-[#202020] hover:text-white'
+                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
                 }`}
               >
                 <span className="flex items-center gap-2">
                   <span className="text-sm">🇺🇸</span>
                   <span>{t.header.english}</span>
                 </span>
-                {language === 'en-US' && <Check className="h-3.5 w-3.5" />}
+                {language === 'en-US' && <Check className="h-3.5 w-3.5 text-indigo-500" />}
               </button>
             </div>
           )}
@@ -138,8 +250,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             onClick={() => onNavigateTab('configuracoes')}
             className={`rounded-xl border p-2.5 transition ${
               activeTab === 'configuracoes'
-                ? 'border-[#F97316] bg-[#F97316]/15 text-white'
-                : 'border-[#27272A] bg-[#151515] text-[#FDBA74] hover:border-[#3F3F46] hover:bg-[#1E1E1E] hover:text-white'
+                ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                : 'border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-200/60 dark:hover:bg-slate-800/70'
             }`}
             title={t.header.settings}
             aria-label={t.header.settings}
@@ -150,7 +262,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         <button
           onClick={onOpenUpload}
-          className="flex items-center gap-2 rounded-xl bg-[#F97316] px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-[#F97316]/25 transition hover:bg-[#EA580C] active:scale-[0.98] whitespace-nowrap cursor-pointer"
+          className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-600/20 transition active:scale-[0.98] whitespace-nowrap cursor-pointer"
         >
           <Upload className="h-4 w-4" />
           <span className="hidden sm:inline">{t.header.uploadVideo}</span>

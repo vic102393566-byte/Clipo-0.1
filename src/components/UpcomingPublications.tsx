@@ -182,7 +182,7 @@ export const UpcomingPublications: React.FC<UpcomingPublicationsProps> = ({
                     <Play className="h-4 w-4 text-white fill-white" />
                   </div>
                   <span className="absolute bottom-1 right-1 rounded bg-black/75 px-1 py-0.2 font-mono text-[9px] tabular-nums text-white">
-                    {item.durationFormatted}
+                    {item.duration}
                   </span>
                 </div>
 
@@ -198,7 +198,7 @@ export const UpcomingPublications: React.FC<UpcomingPublicationsProps> = ({
                   </div>
 
                   <p className="mt-0.5 text-xs text-[#FDBA74] line-clamp-1">
-                    {item.caption || (isEn ? 'No caption provided' : 'Sem legenda definida')}
+                    {item.description || (isEn ? 'No caption provided' : 'Sem legenda definida')}
                   </p>
 
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">

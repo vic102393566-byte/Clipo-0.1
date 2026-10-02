@@ -196,8 +196,8 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                 handle: status.account.handle,
                 name: status.account.name,
                 avatar: status.account.avatarUrl || currentAcc?.avatar,
-                followers: status.account.followers || currentAcc?.followers || '0',
-                connectedAt: status.account.connectedAt || new Date().toISOString(),
+                followers: status.account.followersFormatted || String(status.account.followerCount || currentAcc?.followers || '0'),
+                connectedAt: status.connectedAt || new Date().toISOString(),
               };
 
               if (onUpdateAccount) {
@@ -227,19 +227,11 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
     setActivePlatformAuthenticating(platform);
 
     try {
-      let authRes: AuthUrlResponse;
+      const authRes = await socialAccountsService.getAuthUrl(platform, userId);
 
-      if (platform === 'youtube') {
-        authRes = await socialAccountsService.getYouTubeAuthUrl(userId);
-      } else if (platform === 'instagram') {
-        authRes = await socialAccountsService.getInstagramAuthUrl(userId);
-      } else {
-        authRes = await socialAccountsService.getTikTokAuthUrl(userId);
-      }
-
-      if (!authRes.success || !authRes.url) {
+      if (!authRes.configured || !authRes.url) {
         setActivePlatformAuthenticating(null);
-        setAuthError(authRes.error || (isEn ? `Missing OAuth configuration for ${platform}.` : `Configurações OAuth ausentes para o ${platform}.`));
+        setAuthError(authRes.message || (isEn ? `Missing OAuth configuration for ${platform}.` : `Configurações OAuth ausentes para o ${platform}.`));
         return;
       }
 

@@ -1,4 +1,5 @@
 import { User, AuthSession, PlanTier } from '../types';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 /**
  * =========================================================================
@@ -282,7 +283,33 @@ class AuthService {
       };
     }
 
-    // Login bem-sucedido: gera token e salva sessão
+    // Login bem-sucedido: sincroniza com Supabase Auth se configurado para obter o UUID real
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPassword,
+        });
+
+        if (supaErr) {
+          const { data: signUpData } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password: cleanPassword,
+            options: {
+              data: { name: userRecord.user.name },
+            },
+          });
+          if (signUpData?.user?.id) {
+            userRecord.user.id = signUpData.user.id;
+          }
+        } else if (supaData?.user?.id) {
+          userRecord.user.id = supaData.user.id;
+        }
+      } catch (supaErr) {
+        console.warn('[Supabase Auth] Sincronização no login:', supaErr);
+      }
+    }
+
     const token = generateAuthToken(userRecord.user.id);
     this.setSession(userRecord.user, token);
 
@@ -307,12 +334,9 @@ class AuthService {
     const cleanPassword = password.trim();
 
     // Validações de entrada
-    if (!cleanName) {
-      return { success: false, error: 'Por favor, informe seu nome completo.' };
-    }
-
-    if (cleanName.length < 2) {
-      return { success: false, error: 'O nome deve conter pelo menos 2 caracteres.' };
+    const nameParts = cleanName.split(/\s+/).filter(Boolean);
+    if (nameParts.length < 2 || nameParts.some((part) => part.length < 2)) {
+      return { success: false, error: 'Digite seu nome completo (nome e sobrenome).' };
     }
 
     if (!cleanEmail) {
@@ -346,6 +370,26 @@ class AuthService {
       };
     }
 
+    // Se o Supabase estiver configurado, cria o usuário correspondente no Supabase Auth
+    let supabaseUUID: string | null = null;
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: supaData, error: supaErr } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: cleanPassword,
+          options: {
+            data: { name: cleanName },
+          },
+        });
+        if (!supaErr && supaData?.user?.id) {
+          supabaseUUID = supaData.user.id;
+          console.log('[Supabase Auth] Novo usuário registrado no Supabase:', supabaseUUID);
+        }
+      } catch (supaErr) {
+        console.warn('[Supabase Auth] Sincronização no cadastro:', supaErr);
+      }
+    }
+
     // Cria novo registro com salt e hash criptográfico
     const salt = 'salt_' + Math.random().toString(36).substring(2, 9);
     const passwordHash = await hashPassword(cleanPassword, salt);
@@ -355,7 +399,7 @@ class AuthService {
     const avatarUrl = `https://ui-avatars.com/api/?name=${encodedName}&background=F97316&color=fff&size=200`;
 
     const newUser: User = {
-      id: generateUserId(),
+      id: supabaseUUID || generateUserId(),
       name: cleanName,
       email: cleanEmail,
       avatarUrl,
@@ -388,6 +432,9 @@ class AuthService {
    */
   logout(): void {
     this.clearSession();
+    if (isSupabaseConfigured()) {
+      supabase.auth.signOut().catch(() => {});
+    }
   }
 
   /**
