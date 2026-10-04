@@ -25,6 +25,8 @@ import { VideoItem, PlanTier } from '../types';
 import { currentStorageProvider, getStoredPlan, PLANS_CONFIG } from '../services/storageService';
 import { authService, DEFAULT_DEMO_USER } from '../services/authService';
 import {
+  supabase,
+  isUUID,
   isSupabaseConfigured,
   ensureSupabaseConfigured,
   isProductionEnvironment,
@@ -142,8 +144,12 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
       try {
         console.log(`[SUPABASE STORAGE] Iniciando upload direto para o bucket 'clipo-videos'...`);
 
-        // Requisito 7 & 11: Obter UUID real do usuário autenticado no Supabase
-        const supabaseUserId = await getEffectiveSupabaseUserId();
+        // Requisito: Verificar a sessão real do Supabase antes do upload
+        const { data: sessionData } = await supabase.auth.getSession();
+        const session = sessionData?.session;
+        const supabaseUserId = (session?.user?.id && isUUID(session.user.id))
+          ? session.user.id
+          : await getEffectiveSupabaseUserId();
 
         if (!supabaseUserId) {
           throw new Error(

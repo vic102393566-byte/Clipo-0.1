@@ -209,36 +209,15 @@ export function getSupabaseConfigStatus(): { configured: boolean; url: string; h
 }
 
 /**
- * Detecta se a aplicação está rodando na sandbox de desenvolvimento/preview do Google AI Studio
- */
-export function isAIStudioSandbox(): boolean {
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    return (
-      host.includes('ais-dev-') ||
-      host.includes('ais-pre-') ||
-      host.includes('us-east1.run.app') ||
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host.endsWith('.local')
-    );
-  }
-  return false;
-}
-
-/**
- * Detecta se a aplicação está rodando em ambiente de produção real (deploy na Vercel ou domínio próprio).
- * A sandbox do Google AI Studio (ais-dev-*.run.app / ais-pre-*.run.app) é um ambiente de desenvolvimento e testes.
+ * Detecta se a aplicação está rodando em ambiente de produção (Vercel, Cloud Run, deploy real)
  */
 export function isProductionEnvironment(): boolean {
-  if (isAIStudioSandbox()) {
-    return false;
-  }
+  if (import.meta.env.PROD) return true;
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
-    return host.endsWith('.vercel.app') || (!host.includes('localhost') && !host.includes('127.0.0.1'));
+    return host !== 'localhost' && host !== '127.0.0.1' && !host.endsWith('.local');
   }
-  return import.meta.env.PROD;
+  return false;
 }
 
 /**
@@ -611,6 +590,12 @@ export function categorizeUploadError(
   }
 
   // 2. Erro de autenticação / RLS do Supabase
+  if (lower.includes('sessão de autenticação do supabase não encontrada') || lower.includes('active supabase session not found')) {
+    return isEn
+      ? 'Active Supabase session not found. Please log in to upload videos to secure storage.'
+      : 'Sessão de autenticação do Supabase não encontrada. Faça login para enviar vídeos ao armazenamento seguro (RLS).';
+  }
+
   if (
     status === 401 ||
     status === 403 ||

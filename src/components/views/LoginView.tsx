@@ -148,6 +148,22 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setErrorMessage(null);
   };
 
+  // Google OAuth Login
+  const handleGoogleSignIn = async () => {
+    setErrorMessage(null);
+    setIsLoading(true);
+    try {
+      const res = await authService.signInWithGoogle();
+      if (!res.success) {
+        setIsLoading(false);
+        setErrorMessage(res.error || (isEn ? 'Google sign in failed.' : 'Falha ao iniciar login com Google.'));
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      setErrorMessage(err.message || (isEn ? 'Google sign in failed.' : 'Falha ao iniciar login com Google.'));
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-[#0A0A0A] flex flex-col items-center justify-center p-4 sm:p-6 text-white selection:bg-[#F97316]/30 selection:text-white relative">
       {/* Top right language selector */}
@@ -523,6 +539,31 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </div>
             </form>
           )}
+
+          {/* Divisor "ou" e Botão Google OAuth */}
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-[#27272A]" />
+            </div>
+            <div className="relative flex justify-center text-[11px] uppercase">
+              <span className="bg-[#151515] px-2 text-[#71717A]">{isEn ? 'Or continue with' : 'Ou continue com'}</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={isLoading}
+            className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-[#27272A] bg-[#0A0A0A] py-2.5 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#1E1E1E] hover:border-[#3F3F46] active:scale-[0.99] disabled:opacity-60 cursor-pointer"
+          >
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z" />
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24Z" />
+              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15Z" />
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z" />
+            </svg>
+            <span>{isEn ? 'Continue with Google' : 'Continuar com Google'}</span>
+          </button>
 
           {/* Quick Access Helper for demo account (only in Login mode) */}
           {mode === 'login' && (

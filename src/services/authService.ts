@@ -1,36 +1,14 @@
-import { User, AuthSession, PlanTier } from '../types';
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { User, AuthSession } from '../types';
+import { supabase, isSupabaseConfigured, ensureSupabaseConfigured, isUUID } from './supabaseClient';
 
 /**
  * =========================================================================
- * GUIA DE INTEGRAÇÃO COM BACKEND REAL (BACKEND INTEGRATION SPECIFICATION)
+ * CLIPO - SERVIÇO DE AUTENTICAÇÃO OFICIAL (SUPABASE AUTH)
  * =========================================================================
- * Esta arquitetura foi concebida para permitir a troca direta deste provedor
- * local por um backend REST, GraphQL, Firebase Auth, Supabase ou NestJS.
- *
- * Para conectar ao backend real:
- * 1. Configure as variáveis de ambiente em .env:
- *    VITE_AUTH_API_URL=https://api.clipo.io/v1/auth
- *
- * 2. Endpoints esperados da API:
- *    - POST /api/auth/register
- *      Body: { name, email, password }
- *      Response: { success: true, user: User, token: string }
- *
- *    - POST /api/auth/login
- *      Body: { email, password }
- *      Response: { success: true, user: User, token: string }
- *
- *    - POST /api/auth/logout
- *      Headers: { Authorization: Bearer <token> }
- *      Response: { success: true }
- *
- *    - GET /api/auth/me
- *      Headers: { Authorization: Bearer <token> }
- *      Response: { user: User }
- *
- * 3. As senhas NUNCA são salvas em texto puro. No cliente atual, usamos hash
- *    SHA-256 criptográfico saltado antes do armazenamento local.
+ * A fonte de autoridade real de autenticação é o SUPABASE AUTH.
+ * Após o login, deve existir sempre uma sessão válida em:
+ * supabase.auth.getSession()
+ * contendo session.user.id (UUID oficial RFC 4122) utilizado pelo Supabase Storage.
  * =========================================================================
  */
 
@@ -50,7 +28,7 @@ export interface StoredUserRecord {
 const USERS_REPO_KEY = 'clipo_auth_users_v2';
 const ACTIVE_SESSION_KEY = 'clipo_auth_current_session_v2';
 
-// Usuário padrão demonstrativo inicial
+// Usuário padrão demonstrativo inicial (apenas template visual de preenchimento)
 export const DEFAULT_DEMO_USER: User = {
   id: 'user_vicente_1',
   name: 'Vicente Silva',
@@ -61,8 +39,7 @@ export const DEFAULT_DEMO_USER: User = {
 };
 
 /**
- * Função utilitária para gerar hash SHA-256 seguro (Web Crypto API)
- * Evita salvar senhas em texto puro no frontend.
+ * Função utilitária para hash seguro SHA-256 no fallback local
  */
 async function hashPassword(password: string, salt: string): Promise<string> {
   const salted = `${salt}_${password}_clipo_secure_salt_2026`;
@@ -77,7 +54,6 @@ async function hashPassword(password: string, salt: string): Promise<string> {
   } catch (err) {
     console.warn('Web Crypto não disponível, usando fallback seguro:', err);
   }
-  // Fallback seguro caso subtle crypto não esteja em HTTPS
   let hash = 0;
   for (let i = 0; i < salted.length; i++) {
     const char = salted.charCodeAt(i);
@@ -88,7 +64,7 @@ async function hashPassword(password: string, salt: string): Promise<string> {
 }
 
 /**
- * Carrega todos os usuários registrados
+ * Carrega repositório local de usuários (usado apenas em modo offline sem Supabase)
  */
 function getRegisteredUsers(): StoredUserRecord[] {
   try {
@@ -103,9 +79,7 @@ function getRegisteredUsers(): StoredUserRecord[] {
     console.error('Erro ao ler usuários registrados:', err);
   }
 
-  // Pre-popula o usuário inicial com hash da senha padrão '123456'
   const initialSalt = 'salt_vicente_default';
-  // Hash síncrono pre-calculado para '123456'
   const defaultRecord: StoredUserRecord = {
     user: DEFAULT_DEMO_USER,
     passwordHash: '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92',
@@ -115,9 +89,6 @@ function getRegisteredUsers(): StoredUserRecord[] {
   return [defaultRecord];
 }
 
-/**
- * Salva usuários no repositório persistente
- */
 function saveRegisteredUsers(users: StoredUserRecord[]): void {
   try {
     localStorage.setItem(USERS_REPO_KEY, JSON.stringify(users));
@@ -126,37 +97,37 @@ function saveRegisteredUsers(users: StoredUserRecord[]): void {
   }
 }
 
-/**
- * Validador de formato de e-mail
- */
 export function isValidEmail(email: string): boolean {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return re.test(email.trim().toLowerCase());
 }
 
 /**
- * Gera um ID único para novos usuários
+ * Transforma um usuário do Supabase Auth para a interface User do Clipo
  */
-function generateUserId(): string {
-  return 'usr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+export function mapSupabaseUserToClipoUser(supaUser: any): User {
+  const meta = supaUser.user_metadata || {};
+  const email = supaUser.email || '';
+  const name = meta.name || meta.full_name || email.split('@')[0] || 'Usuário Clipo';
+  const avatarUrl =
+    meta.avatar_url ||
+    meta.picture ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=F97316&color=fff&size=200`;
+
+  return {
+    id: supaUser.id, // UUID REAL DO SUPABASE
+    email,
+    name,
+    avatarUrl,
+    createdAt: supaUser.created_at || new Date().toISOString(),
+    planId: 'pro',
+  };
 }
 
-/**
- * Gera um token de sessão de autenticação simulado no formato padrão Bearer
- */
-function generateAuthToken(userId: string): string {
-  const randomPart = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
-  return `clipo_tk_${userId}_${Date.now()}_${randomPart}`;
-}
-
-/**
- * =========================================================================
- * SERVIÇO DE AUTENTICAÇÃO
- * =========================================================================
- */
 class AuthService {
   /**
-   * Obtém a sessão ativa atual
+   * Obtém a sessão ativa atual.
+   * Se o Supabase estiver configurado, REJEITA sessões legadas não-UUID (ex: 'user_vicente_1').
    */
   getSession(): AuthSession | null {
     try {
@@ -164,28 +135,16 @@ class AuthService {
       if (raw) {
         const session: AuthSession = JSON.parse(raw);
         if (session && session.user && session.expiresAt > Date.now()) {
+          // Se Supabase está configurado, o ID DEVE ser um UUID legítimo do Supabase
+          if (isSupabaseConfigured() && !isUUID(session.user.id)) {
+            console.warn('[AuthService] Descartando sessão legada com ID local não-UUID:', session.user.id);
+            this.clearSession();
+            return null;
+          }
           return session;
         }
-        // Se a sessão expirou, remove
         this.clearSession();
         return null;
-      }
-
-      // Migração de sessão pré-existente
-      const legacySession = localStorage.getItem('clipo_auth_session_active');
-      if (legacySession === 'false') {
-        return null;
-      }
-
-      if (legacySession === 'true') {
-        const token = generateAuthToken(DEFAULT_DEMO_USER.id);
-        const initialSession: AuthSession = {
-          token,
-          user: DEFAULT_DEMO_USER,
-          expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
-        };
-        localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(initialSession));
-        return initialSession;
       }
     } catch (err) {
       console.warn('Erro ao ler sessão ativa:', err);
@@ -194,17 +153,16 @@ class AuthService {
   }
 
   /**
-   * Salva a sessão ativa (persiste no navegador)
+   * Salva a sessão ativa localmente
    */
   setSession(user: User, token: string): void {
     try {
       const session: AuthSession = {
         token,
         user,
-        expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000, // 14 dias de sessão
+        expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000, // 14 dias
       };
       localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
-      // Sincroniza flag legado caso algum componente ainda consulte
       localStorage.setItem('clipo_auth_session_active', 'true');
     } catch (err) {
       console.error('Erro ao salvar sessão ativa:', err);
@@ -212,52 +170,150 @@ class AuthService {
   }
 
   /**
-   * Remove a sessão ativa (Logout)
+   * Remove a sessão ativa local
    */
   clearSession(): void {
     try {
       localStorage.removeItem(ACTIVE_SESSION_KEY);
-      localStorage.setItem('clipo_auth_session_active', 'false');
+      localStorage.removeItem('clipo_auth_session_active');
     } catch (err) {
       console.error('Erro ao limpar sessão:', err);
     }
   }
 
-  /**
-   * Retorna se o usuário está autenticado
-   */
   isAuthenticated(): boolean {
     return this.getSession() !== null;
   }
 
-  /**
-   * Retorna os dados do usuário autenticado no momento
-   */
   getCurrentUser(): User | null {
     const session = this.getSession();
     return session ? session.user : null;
   }
 
   /**
-   * Realiza login com E-mail e Senha
+   * Sincroniza a sessão diretamente com o Supabase Auth (fonte de autoridade)
+   */
+  async syncFromSupabase(): Promise<User | null> {
+    await ensureSupabaseConfigured();
+    if (!isSupabaseConfigured()) {
+      return this.getCurrentUser();
+    }
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
+      if (session?.user && isUUID(session.user.id)) {
+        const clipoUser = mapSupabaseUserToClipoUser(session.user);
+        this.setSession(clipoUser, session.access_token);
+        return clipoUser;
+      } else {
+        // Sem sessão no Supabase Auth: descarta sessão local inválida
+        const current = this.getSession();
+        if (current && !isUUID(current.user?.id)) {
+          this.clearSession();
+        }
+      }
+    } catch (err) {
+      console.warn('[AuthService] Erro ao sincronizar com Supabase Auth:', err);
+    }
+    return null;
+  }
+
+  /**
+   * Realiza login oficial via Supabase Auth
    */
   async login(email: string, password: string): Promise<AuthResult> {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    // Validações de entrada
     if (!cleanEmail) {
       return { success: false, error: 'Por favor, informe seu endereço de e-mail.' };
     }
-
     if (!isValidEmail(cleanEmail)) {
       return { success: false, error: 'Formato de e-mail inválido. Exemplo: usuario@exemplo.com' };
     }
-
     if (!cleanPassword) {
       return { success: false, error: 'Por favor, informe sua senha de acesso.' };
     }
 
+    await ensureSupabaseConfigured();
+
+    // =========================================================================
+    // 1. SUPABASE AUTH É A FONTE DE AUTORIDADE OFICIAL
+    // =========================================================================
+    if (isSupabaseConfigured()) {
+      try {
+        console.log(`[Supabase Auth] Autenticando com e-mail: ${cleanEmail}`);
+        const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPassword,
+        });
+
+        // Login com sucesso no Supabase Auth
+        if (!supaErr && supaData?.session && supaData?.user) {
+          console.log(`[Supabase Auth] Login bem-sucedido! UUID: ${supaData.user.id}`);
+          const clipoUser = mapSupabaseUserToClipoUser(supaData.user);
+          this.setSession(clipoUser, supaData.session.access_token);
+
+          return {
+            success: true,
+            user: clipoUser,
+            token: supaData.session.access_token,
+          };
+        }
+
+        // Se o usuário ainda não foi provisionado no Supabase Auth (ex: primeira vez que usa a conta demo)
+        if (
+          supaErr &&
+          (supaErr.message.toLowerCase().includes('invalid login credentials') ||
+            supaErr.message.toLowerCase().includes('user not found'))
+        ) {
+          console.log('[Supabase Auth] Usuário não encontrado no Supabase. Tentando cadastro automático...');
+          const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password: cleanPassword,
+            options: {
+              data: { name: cleanEmail.split('@')[0] },
+            },
+          });
+
+          if (!signUpErr && signUpData?.session && signUpData?.user) {
+            console.log(`[Supabase Auth] Cadastro automático concluído com sessão! UUID: ${signUpData.user.id}`);
+            const clipoUser = mapSupabaseUserToClipoUser(signUpData.user);
+            this.setSession(clipoUser, signUpData.session.access_token);
+
+            return {
+              success: true,
+              user: clipoUser,
+              token: signUpData.session.access_token,
+            };
+          }
+        }
+
+        // Mensagens de erro amigáveis
+        let errorMsg = supaErr?.message || 'Falha ao autenticar no Supabase Auth.';
+        if (errorMsg === 'Invalid login credentials') {
+          errorMsg = 'E-mail ou senha incorretos. Verifique suas credenciais no Supabase Auth.';
+        } else if (errorMsg.includes('Email not confirmed')) {
+          errorMsg = 'E-mail ainda não confirmado. Verifique sua caixa de entrada no Supabase Auth.';
+        }
+
+        return {
+          success: false,
+          error: errorMsg,
+        };
+      } catch (err: any) {
+        console.error('[Supabase Auth] Erro inesperado durante login:', err);
+        return {
+          success: false,
+          error: err.message || 'Erro de conexão com o Supabase Auth.',
+        };
+      }
+    }
+
+    // =========================================================================
+    // 2. FALLBACK LOCAL (Apenas se o Supabase não estiver configurado)
+    // =========================================================================
     const users = getRegisteredUsers();
     const userRecord = users.find((u) => u.user.email.toLowerCase() === cleanEmail);
 
@@ -268,10 +324,7 @@ class AuthService {
       };
     }
 
-    // Calcula o hash da senha informada
     const computedHash = await hashPassword(cleanPassword, userRecord.salt);
-
-    // Permite login com senha padrão demonstrativa se for o Vicente
     const isVicenteDemo =
       userRecord.user.id === DEFAULT_DEMO_USER.id &&
       (cleanPassword === '123456' || cleanPassword === 'clipo123');
@@ -283,45 +336,18 @@ class AuthService {
       };
     }
 
-    // Login bem-sucedido: sincroniza com Supabase Auth se configurado para obter o UUID real
-    if (isSupabaseConfigured()) {
-      try {
-        const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password: cleanPassword,
-        });
-
-        if (supaErr) {
-          const { data: signUpData } = await supabase.auth.signUp({
-            email: cleanEmail,
-            password: cleanPassword,
-            options: {
-              data: { name: userRecord.user.name },
-            },
-          });
-          if (signUpData?.user?.id) {
-            userRecord.user.id = signUpData.user.id;
-          }
-        } else if (supaData?.user?.id) {
-          userRecord.user.id = supaData.user.id;
-        }
-      } catch (supaErr) {
-        console.warn('[Supabase Auth] Sincronização no login:', supaErr);
-      }
-    }
-
-    const token = generateAuthToken(userRecord.user.id);
-    this.setSession(userRecord.user, token);
+    const localToken = `clipo_tk_${userRecord.user.id}_${Date.now()}`;
+    this.setSession(userRecord.user, localToken);
 
     return {
       success: true,
       user: userRecord.user,
-      token,
+      token: localToken,
     };
   }
 
   /**
-   * Realiza o cadastro de um novo usuário
+   * Realiza cadastro no Supabase Auth
    */
   async register(
     name: string,
@@ -333,35 +359,80 @@ class AuthService {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    // Validações de entrada
     const nameParts = cleanName.split(/\s+/).filter(Boolean);
     if (nameParts.length < 2 || nameParts.some((part) => part.length < 2)) {
       return { success: false, error: 'Digite seu nome completo (nome e sobrenome).' };
     }
-
     if (!cleanEmail) {
       return { success: false, error: 'Por favor, informe um endereço de e-mail.' };
     }
-
     if (!isValidEmail(cleanEmail)) {
       return { success: false, error: 'Formato de e-mail inválido. Exemplo: usuario@exemplo.com' };
     }
-
     if (!cleanPassword) {
       return { success: false, error: 'Por favor, crie uma senha de acesso.' };
     }
-
     if (cleanPassword.length < 6) {
       return { success: false, error: 'A senha deve conter no mínimo 6 caracteres para sua segurança.' };
     }
-
     if (confirmPassword !== undefined && cleanPassword !== confirmPassword.trim()) {
       return { success: false, error: 'As senhas digitadas não coincidem. Digite a mesma senha em ambos os campos.' };
     }
 
-    const users = getRegisteredUsers();
+    await ensureSupabaseConfigured();
 
-    // Verifica se o e-mail já está cadastrado
+    if (isSupabaseConfigured()) {
+      try {
+        console.log(`[Supabase Auth] Cadastrando usuário: ${cleanEmail}`);
+        const { data: supaData, error: supaErr } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: cleanPassword,
+          options: {
+            data: { name: cleanName },
+          },
+        });
+
+        if (supaErr) {
+          let msg = supaErr.message;
+          if (msg.includes('User already registered')) {
+            msg = 'Este e-mail já está registrado na plataforma. Faça login ou use outro endereço.';
+          }
+          return { success: false, error: msg };
+        }
+
+        // Se o Supabase retornou sessão ativa imediatamente
+        if (supaData?.session && supaData?.user) {
+          console.log(`[Supabase Auth] Usuário registrado com sessão ativa! UUID: ${supaData.user.id}`);
+          const clipoUser = mapSupabaseUserToClipoUser(supaData.user);
+          this.setSession(clipoUser, supaData.session.access_token);
+          return { success: true, user: clipoUser, token: supaData.session.access_token };
+        }
+
+        // Tenta login direto caso o Supabase não tenha retornado a sessão no signUp
+        const { data: signInData } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPassword,
+        });
+
+        if (signInData?.session && signInData?.user) {
+          const clipoUser = mapSupabaseUserToClipoUser(signInData.user);
+          this.setSession(clipoUser, signInData.session.access_token);
+          return { success: true, user: clipoUser, token: signInData.session.access_token };
+        }
+
+        if (supaData?.user) {
+          return {
+            success: true,
+            error: 'Cadastro realizado! Se a confirmação de e-mail estiver ativada no Supabase, verifique sua caixa postal.',
+          };
+        }
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Erro ao registrar no Supabase Auth.' };
+      }
+    }
+
+    // Fallback local caso Supabase não esteja configurado
+    const users = getRegisteredUsers();
     const existing = users.find((u) => u.user.email.toLowerCase() === cleanEmail);
     if (existing) {
       return {
@@ -370,76 +441,70 @@ class AuthService {
       };
     }
 
-    // Se o Supabase estiver configurado, cria o usuário correspondente no Supabase Auth
-    let supabaseUUID: string | null = null;
-    if (isSupabaseConfigured()) {
-      try {
-        const { data: supaData, error: supaErr } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password: cleanPassword,
-          options: {
-            data: { name: cleanName },
-          },
-        });
-        if (!supaErr && supaData?.user?.id) {
-          supabaseUUID = supaData.user.id;
-          console.log('[Supabase Auth] Novo usuário registrado no Supabase:', supabaseUUID);
-        }
-      } catch (supaErr) {
-        console.warn('[Supabase Auth] Sincronização no cadastro:', supaErr);
-      }
-    }
-
-    // Cria novo registro com salt e hash criptográfico
     const salt = 'salt_' + Math.random().toString(36).substring(2, 9);
     const passwordHash = await hashPassword(cleanPassword, salt);
-
-    // Gerar avatar com iniciais coloridas ou placeholder neutro
     const encodedName = encodeURIComponent(cleanName);
     const avatarUrl = `https://ui-avatars.com/api/?name=${encodedName}&background=F97316&color=fff&size=200`;
 
     const newUser: User = {
-      id: supabaseUUID || generateUserId(),
+      id: 'usr_' + Date.now().toString(36),
       name: cleanName,
       email: cleanEmail,
       avatarUrl,
       createdAt: new Date().toISOString(),
-      planId: 'pro', // Concede plano Pro de boas-vindas
+      planId: 'pro',
     };
 
-    const newRecord: StoredUserRecord = {
-      user: newUser,
-      passwordHash,
-      salt,
-    };
-
-    users.push(newRecord);
+    users.push({ user: newUser, passwordHash, salt });
     saveRegisteredUsers(users);
 
-    // Salva sessão imediatamente após o cadastro
-    const token = generateAuthToken(newUser.id);
-    this.setSession(newUser, token);
+    const localToken = `clipo_tk_${newUser.id}_${Date.now()}`;
+    this.setSession(newUser, localToken);
 
-    return {
-      success: true,
-      user: newUser,
-      token,
-    };
+    return { success: true, user: newUser, token: localToken };
   }
 
   /**
-   * Encerra a sessão ativa
+   * Inicia o fluxo de Login via Google OAuth pelo Supabase Auth
    */
-  logout(): void {
-    this.clearSession();
-    if (isSupabaseConfigured()) {
-      supabase.auth.signOut().catch(() => {});
+  async signInWithGoogle(): Promise<{ success: boolean; error?: string }> {
+    await ensureSupabaseConfigured();
+    if (!isSupabaseConfigured()) {
+      return { success: false, error: 'Supabase Auth não está configurado neste ambiente.' };
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+        },
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Erro ao iniciar login com Google no Supabase Auth.' };
     }
   }
 
   /**
-   * Atualiza os dados do perfil do usuário ativo
+   * Encerra a sessão ativa de forma completa (Supabase Auth e local)
    */
+  async logout(): Promise<void> {
+    this.clearSession();
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.auth.signOut();
+        console.log('[Supabase Auth] Sessão encerrada no Supabase.');
+      } catch (err) {
+        console.warn('[Supabase Auth] Erro ao executar signOut:', err);
+      }
+    }
+  }
+
   updateCurrentUserProfile(partial: Partial<User>): User | null {
     const session = this.getSession();
     if (!session) return null;
@@ -449,15 +514,13 @@ class AuthService {
       ...partial,
     };
 
-    // Atualiza na sessão
     this.setSession(updatedUser, session.token);
 
-    // Atualiza no repositório de usuários
-    const users = getRegisteredUsers();
-    const index = users.findIndex((u) => u.user.id === updatedUser.id);
-    if (index >= 0) {
-      users[index].user = updatedUser;
-      saveRegisteredUsers(users);
+    // Se estiver conectado ao Supabase, pode sincronizar os metadados do usuário
+    if (isSupabaseConfigured() && isUUID(updatedUser.id)) {
+      supabase.auth.updateUser({
+        data: { name: updatedUser.name },
+      }).catch((err) => console.warn('[Supabase Auth] Erro ao sincronizar updateUser:', err));
     }
 
     return updatedUser;

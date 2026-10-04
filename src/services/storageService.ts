@@ -499,6 +499,16 @@ export function saveStoredSocialAccounts(accounts: SocialAccount[], userId?: str
   }
 }
 
+export interface StorageUsageData {
+  totalUsedBytes: number;
+  totalLimitBytes: number;
+  usedFormatted: string;
+  limitFormatted: string;
+  percentUsed: number;
+  isOverLimit: boolean;
+  availableBytes: number;
+}
+
 /**
  * Calculates current total storage consumption considering ONLY real files
  * in media/uploads and media/cuts on the server.
@@ -507,15 +517,7 @@ export function calculateStorageUsage(
   customVideos: VideoItem[],
   planTier: PlanTier,
   serverRealBytes?: number
-): {
-  totalUsedBytes: number;
-  totalLimitBytes: number;
-  usedFormatted: string;
-  limitFormatted: string;
-  percentUsed: number;
-  isOverLimit: boolean;
-  availableBytes: number;
-} {
+): StorageUsageData {
   const plan = PLANS_CONFIG[planTier] || PLANS_CONFIG.pro;
 
   let totalUsedBytes = 0;

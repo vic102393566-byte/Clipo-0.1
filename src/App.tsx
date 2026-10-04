@@ -28,7 +28,8 @@ import {
   isUserLoggedIn,
   logoutUser
 } from './services/userSettingsService';
-import { authService, DEFAULT_DEMO_USER } from './services/authService';
+import { authService, DEFAULT_DEMO_USER, mapSupabaseUserToClipoUser } from './services/authService';
+import { supabase, isSupabaseConfigured, ensureSupabaseConfigured, isUUID } from './services/supabaseClient';
 
 import {
   TabType,
@@ -537,14 +538,14 @@ export default function App() {
   };
 
   // Terminate authentication session and redirect to Login
-  const handleLogout = () => {
-    authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     setCurrentUser(null);
     setIsAuthenticated(false);
     setConnectedAccounts(initialConnectedAccounts);
   };
 
-  const handleLoginSuccess = (user: User) => {
+  const handleLoginSuccess = useCallback((user: User) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
     const userId = user.id;
@@ -562,7 +563,62 @@ export default function App() {
     setActivePlan(getStoredPlan(userId));
     setUserProfile(getStoredUserProfile(userId));
     setActiveTab('dashboard');
-  };
+  }, []);
+
+  // Sincronização em tempo real com o Supabase Auth (restauração de sessão, Google OAuth e listener oficial)
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initSupabaseSession() {
+      await ensureSupabaseConfigured();
+
+      if (isSupabaseConfigured()) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user && isUUID(session.user.id) && isMounted) {
+            console.log('[Supabase Auth] Sessão ativa restaurada para UUID:', session.user.id);
+            const supaUser = mapSupabaseUserToClipoUser(session.user);
+            authService.setSession(supaUser, session.access_token);
+            handleLoginSuccess(supaUser);
+          } else if (isMounted) {
+            // Se Supabase está configurado mas não tem sessão ativa, descarta sessão local não-UUID
+            const localSession = authService.getSession();
+            if (!localSession || !isUUID(localSession.user?.id)) {
+              console.log('[Supabase Auth] Nenhuma sessão Supabase ativa. Solicitando login.');
+              authService.clearSession();
+              setCurrentUser(null);
+              setIsAuthenticated(false);
+            }
+          }
+        } catch (err) {
+          console.warn('[App] Erro na restauração inicial de sessão Supabase:', err);
+        }
+      }
+    }
+
+    initSupabaseSession();
+
+    // Listener de mudanças de estado no Supabase Auth (Sign In, Sign Out, Token Refresh, Google OAuth Redirect)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
+      console.log('[Supabase Auth onAuthStateChange]:', event, session?.user?.id);
+
+      if (session?.user && isUUID(session.user.id)) {
+        const supaUser = mapSupabaseUserToClipoUser(session.user);
+        authService.setSession(supaUser, session.access_token);
+        handleLoginSuccess(supaUser);
+      } else if (event === 'SIGNED_OUT') {
+        authService.clearSession();
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [handleLoginSuccess]);
 
   // Check directly from window.location as well on every render to ensure immediate zero-delay display
   const activePublicRoute = currentPublicRoute || (typeof window !== 'undefined' ? checkPublicRoute() : null);
