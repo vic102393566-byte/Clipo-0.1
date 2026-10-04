@@ -35,13 +35,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onNavigateTab,
 }) => {
   const { language, setLanguage, t } = useI18n();
-  const { theme, resolvedTheme, setTheme } = useTheme();
+
 
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
-  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+
 
   const langMenuRef = useRef<HTMLDivElement>(null);
-  const themeMenuRef = useRef<HTMLDivElement>(null);
+
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -49,40 +49,23 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
         setIsLangMenuOpen(false);
       }
-      if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
-        setIsThemeMenuOpen(false);
-      }
+  
     };
-    if (isLangMenuOpen || isThemeMenuOpen) {
+   if (isLangMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isLangMenuOpen, isThemeMenuOpen]);
+}, [isLangMenuOpen]);
 
   const currentTabInfo = t.header.tabs[activeTab] || t.header.tabs.dashboard;
 
-  const handleSelectLanguage = (newLang: Language) => {
-    setLanguage(newLang);
-    setIsLangMenuOpen(false);
-  };
+ 
 
-  const handleSelectTheme = (newTheme: ThemePreference) => {
-    setTheme(newTheme);
-    setIsThemeMenuOpen(false);
-  };
 
-  // Render icon based on current theme setting
-  const renderThemeIcon = () => {
-    if (theme === 'system') {
-      return <Monitor className="h-4 w-4 text-indigo-500" />;
-    }
-    if (resolvedTheme === 'light') {
-      return <Sun className="h-4 w-4 text-amber-500" />;
-    }
-    return <Moon className="h-4 w-4 text-indigo-400" />;
-  };
+
+
 
   return (
     <header className="sticky top-0 z-30 flex h-18 w-full items-center justify-between border-b border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-[#0B0F17]/90 px-4 sm:px-6 backdrop-blur-md transition-colors duration-200">
@@ -109,86 +92,15 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
       {/* Zone 3: Actions (Theme Selector + Language Selector + Settings + Upload CTA) */}
       <div className="flex items-center gap-2 sm:gap-2.5">
-        {/* Theme Selector Dropdown */}
-        <div className="relative" ref={themeMenuRef}>
-          <button
-            onClick={() => {
-              setIsThemeMenuOpen((prev) => !prev);
-              setIsLangMenuOpen(false);
-            }}
-            className={`flex items-center gap-1.5 rounded-xl border p-2.5 text-xs font-medium transition ${
-              isThemeMenuOpen
-                ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
-                : 'border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-200/60 dark:hover:bg-slate-800/70'
-            }`}
-            title={t.header.theme || 'Tema'}
-            aria-label={t.header.theme || 'Tema'}
-            aria-expanded={isThemeMenuOpen}
-          >
-            {renderThemeIcon()}
-            <ChevronDown className="h-3 w-3 text-slate-400 dark:text-slate-500" />
-          </button>
-
-          {isThemeMenuOpen && (
-            <div className="absolute right-0 mt-2 w-48 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131A29] p-1.5 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase border-b border-slate-100 dark:border-slate-800/80 mb-1">
-                {t.header.theme || 'Tema'}
-              </div>
-
-              <button
-                onClick={() => handleSelectTheme('light')}
-                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
-                  theme === 'light'
-                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <Sun className="h-4 w-4 text-amber-500" />
-                  <span>{t.header.themeLight || 'Claro'}</span>
-                </span>
-                {theme === 'light' && <Check className="h-3.5 w-3.5 text-indigo-500" />}
-              </button>
-
-              <button
-                onClick={() => handleSelectTheme('dark')}
-                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
-                  theme === 'dark'
-                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <Moon className="h-4 w-4 text-indigo-400" />
-                  <span>{t.header.themeDark || 'Escuro'}</span>
-                </span>
-                {theme === 'dark' && <Check className="h-3.5 w-3.5 text-indigo-500" />}
-              </button>
-
-              <button
-                onClick={() => handleSelectTheme('system')}
-                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
-                  theme === 'system'
-                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <Monitor className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                  <span>{t.header.themeSystem || 'Sistema / Automático'}</span>
-                </span>
-                {theme === 'system' && <Check className="h-3.5 w-3.5 text-indigo-500" />}
-              </button>
-            </div>
-          )}
-        </div>
+     
+  
 
         {/* Language Selector Dropdown with Globe 🌐 */}
         <div className="relative" ref={langMenuRef}>
           <button
             onClick={() => {
               setIsLangMenuOpen((prev) => !prev);
-              setIsThemeMenuOpen(false);
+             
             }}
             className={`flex items-center gap-1.5 rounded-xl border p-2.5 text-xs font-medium transition ${
               isLangMenuOpen
