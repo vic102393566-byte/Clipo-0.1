@@ -5,15 +5,11 @@ import {
   Upload,
   Settings,
   Check,
-  ChevronDown,
-  Sun,
-  Moon,
-  Monitor
+  ChevronDown
 } from 'lucide-react';
 import { TabType } from '../types';
 import { useI18n } from '../i18n/I18nContext';
 import { Language } from '../i18n/types';
-
 
 interface TopHeaderProps {
   activeTab: TabType;
@@ -36,36 +32,30 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 }) => {
   const { language, setLanguage, t } = useI18n();
 
-
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
-
-
   const langMenuRef = useRef<HTMLDivElement>(null);
 
-
-  // Close dropdowns on outside click
+  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
         setIsLangMenuOpen(false);
       }
-  
     };
-   if (isLangMenuOpen) {
+    if (isLangMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-}, [isLangMenuOpen]);
+  }, [isLangMenuOpen]);
 
   const currentTabInfo = t.header.tabs[activeTab] || t.header.tabs.dashboard;
 
- 
-
-
-
-
+  const handleSelectLanguage = (newLang: Language) => {
+    setLanguage(newLang);
+    setIsLangMenuOpen(false);
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-18 w-full items-center justify-between border-b border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-[#0B0F17]/90 px-4 sm:px-6 backdrop-blur-md transition-colors duration-200">

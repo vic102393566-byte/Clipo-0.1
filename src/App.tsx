@@ -581,9 +581,12 @@ export default function App() {
             authService.setSession(supaUser, session.access_token);
             handleLoginSuccess(supaUser);
           } else if (isMounted) {
-            // Se Supabase está configurado mas não tem sessão ativa, descarta sessão local não-UUID
+            // Se Supabase está configurado mas não tem sessão ativa, verifica se há sessão local válida com UUID
             const localSession = authService.getSession();
-            if (!localSession || !isUUID(localSession.user?.id)) {
+            if (localSession?.user && isUUID(localSession.user.id)) {
+              console.log('[Auth] Restaurando sessão local autorizada com UUID válido:', localSession.user.email);
+              handleLoginSuccess(localSession.user);
+            } else {
               console.log('[Supabase Auth] Nenhuma sessão Supabase ativa. Solicitando login.');
               authService.clearSession();
               setCurrentUser(null);

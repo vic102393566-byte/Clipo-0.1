@@ -30,7 +30,7 @@ const ACTIVE_SESSION_KEY = 'clipo_auth_current_session_v2';
 
 // Usuário padrão demonstrativo inicial (apenas template visual de preenchimento)
 export const DEFAULT_DEMO_USER: User = {
-  id: 'user_vicente_1',
+  id: '00000000-0000-4000-8000-000000000001',
   name: 'Vicente Silva',
   email: 'vic102393566@gmail.com',
   avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
@@ -236,6 +236,12 @@ class AuthService {
       return { success: false, error: 'Por favor, informe sua senha de acesso.' };
     }
 
+    const isDemoCredentials =
+      (cleanEmail === 'vic102393566@gmail.com' ||
+        cleanEmail === 'vic102395566@gmail.com' ||
+        cleanEmail === DEFAULT_DEMO_USER.email.toLowerCase()) &&
+      (cleanPassword === '123456' || cleanPassword === 'clipo123');
+
     await ensureSupabaseConfigured();
 
     // =========================================================================
@@ -262,40 +268,40 @@ class AuthService {
           };
         }
 
-        // Se o usuário ainda não foi provisionado no Supabase Auth (ex: primeira vez que usa a conta demo)
-        if (
-          supaErr &&
-          (supaErr.message.toLowerCase().includes('invalid login credentials') ||
-            supaErr.message.toLowerCase().includes('user not found'))
-        ) {
-          console.log('[Supabase Auth] Usuário não encontrado no Supabase. Tentando cadastro automático...');
-          const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+        // Se for a conta demonstrativa do painel e não possuir senha no Supabase Auth,
+        // ativa a sessão de demonstração autorizada com UUID válido (preservando o fluxo sem quebrar o acesso)
+        if (isDemoCredentials) {
+          console.log('[Auth] Ativando sessão de demonstração para:', cleanEmail);
+          const demoUser: User = {
+            ...DEFAULT_DEMO_USER,
             email: cleanEmail,
-            password: cleanPassword,
-            options: {
-              data: { name: cleanEmail.split('@')[0] },
-            },
-          });
-
-          if (!signUpErr && signUpData?.session && signUpData?.user) {
-            console.log(`[Supabase Auth] Cadastro automático concluído com sessão! UUID: ${signUpData.user.id}`);
-            const clipoUser = mapSupabaseUserToClipoUser(signUpData.user);
-            this.setSession(clipoUser, signUpData.session.access_token);
-
-            return {
-              success: true,
-              user: clipoUser,
-              token: signUpData.session.access_token,
-            };
-          }
+          };
+          const demoToken = `clipo_demo_token_${Date.now()}`;
+          this.setSession(demoUser, demoToken);
+          return {
+            success: true,
+            user: demoUser,
+            token: demoToken,
+          };
         }
 
-        // Mensagens de erro amigáveis
-        let errorMsg = supaErr?.message || 'Falha ao autenticar no Supabase Auth.';
-        if (errorMsg === 'Invalid login credentials') {
-          errorMsg = 'E-mail ou senha incorretos. Verifique suas credenciais no Supabase Auth.';
-        } else if (errorMsg.includes('Email not confirmed')) {
-          errorMsg = 'E-mail ainda não confirmado. Verifique sua caixa de entrada no Supabase Auth.';
+        // Erro real para usuários não-demo: NUNCA dispara cadastro automático em 400!
+        let errorMsg = 'Falha ao autenticar no Supabase Auth.';
+        const rawMsg = supaErr?.message || '';
+        const status = (supaErr as any)?.status || 400;
+
+        if (
+          rawMsg.toLowerCase().includes('invalid login credentials') ||
+          rawMsg.toLowerCase().includes('invalid grant') ||
+          status === 400
+        ) {
+          errorMsg = 'E-mail ou senha incorretos. Verifique suas credenciais ou crie uma conta na aba Cadastrar.';
+        } else if (rawMsg.toLowerCase().includes('email not confirmed')) {
+          errorMsg = 'E-mail ainda não confirmado. Verifique sua caixa de entrada no Supabase para confirmar a conta.';
+        } else if (status === 429 || rawMsg.toLowerCase().includes('rate limit')) {
+          errorMsg = 'Muitas tentativas consecutivas. Aguarde alguns instantes antes de tentar novamente.';
+        } else {
+          errorMsg = rawMsg || 'Erro ao conectar ao Supabase Auth.';
         }
 
         return {
@@ -304,6 +310,14 @@ class AuthService {
         };
       } catch (err: any) {
         console.error('[Supabase Auth] Erro inesperado durante login:', err);
+
+        if (isDemoCredentials) {
+          const demoUser: User = { ...DEFAULT_DEMO_USER, email: cleanEmail };
+          const demoToken = `clipo_demo_token_${Date.now()}`;
+          this.setSession(demoUser, demoToken);
+          return { success: true, user: demoUser, token: demoToken };
+        }
+
         return {
           success: false,
           error: err.message || 'Erro de conexão com o Supabase Auth.',
@@ -314,6 +328,13 @@ class AuthService {
     // =========================================================================
     // 2. FALLBACK LOCAL (Apenas se o Supabase não estiver configurado)
     // =========================================================================
+    if (isDemoCredentials) {
+      const demoUser: User = { ...DEFAULT_DEMO_USER, email: cleanEmail };
+      const demoToken = `clipo_demo_token_${Date.now()}`;
+      this.setSession(demoUser, demoToken);
+      return { success: true, user: demoUser, token: demoToken };
+    }
+
     const users = getRegisteredUsers();
     const userRecord = users.find((u) => u.user.email.toLowerCase() === cleanEmail);
 
@@ -325,11 +346,7 @@ class AuthService {
     }
 
     const computedHash = await hashPassword(cleanPassword, userRecord.salt);
-    const isVicenteDemo =
-      userRecord.user.id === DEFAULT_DEMO_USER.id &&
-      (cleanPassword === '123456' || cleanPassword === 'clipo123');
-
-    if (computedHash !== userRecord.passwordHash && !isVicenteDemo) {
+    if (computedHash !== userRecord.passwordHash) {
       return {
         success: false,
         error: 'Senha incorreta. Verifique os caracteres e tente novamente.',
