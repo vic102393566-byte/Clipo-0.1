@@ -40,6 +40,8 @@ export interface ScheduledPublication {
   id: string;
   userId?: string; // Foreign key: ID do usuário proprietário
   videoId?: string; // Foreign key: ID do vídeo base
+  videoUrl?: string; // URL direta, assinada ou blob stream para reprodução do vídeo
+  storagePath?: string; // Caminho do arquivo no bucket do storage
   title: string;
   description: string;
   thumbnail: string;

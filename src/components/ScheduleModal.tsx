@@ -242,6 +242,8 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       id: `pub-${Date.now()}`,
       userId: currentVideo.userId,
       videoId: currentVideo.id,
+      videoUrl: currentVideo.videoUrl,
+      storagePath: currentVideo.storagePath,
       title: title.trim() || currentVideo.title,
       description: finalDescription,
       thumbnail: currentVideo.thumbnail,

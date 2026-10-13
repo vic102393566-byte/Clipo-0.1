@@ -185,13 +185,13 @@ export default function App() {
     let isCancelled = false;
 
     async function rehydrateVideoUrls() {
-      let modified = false;
-      const updated = await Promise.all(
+      let videosModified = false;
+      const updatedVideos = await Promise.all(
         videosList.map(async (v) => {
           if (!v.videoUrl || v.storagePath) {
             const url = await currentStorageProvider.getVideoUrl(v.id, v.storagePath);
             if (url && url !== v.videoUrl) {
-              modified = true;
+              videosModified = true;
               return { ...v, videoUrl: url };
             }
           }
@@ -199,8 +199,50 @@ export default function App() {
         })
       );
 
-      if (!isCancelled && modified) {
-        setVideosList(updated);
+      if (!isCancelled && videosModified) {
+        setVideosList(updatedVideos);
+      }
+
+      // Re-hydrate publication video URLs using storagePath, videoId or storage provider
+      let pubsModified = false;
+      const updatedPubs = await Promise.all(
+        publications.map(async (pub) => {
+          // If already has working videoUrl and no storagePath, keep as is
+          let currentUrl = pub.videoUrl;
+          let currentPath = pub.storagePath;
+
+          // If publication references a video from library, backfill storagePath if missing
+          if (!currentPath && pub.videoId) {
+            const parentVideo = updatedVideos.find((v) => v.id === pub.videoId);
+            if (parentVideo) {
+              if (parentVideo.storagePath) {
+                currentPath = parentVideo.storagePath;
+              }
+              if (!currentUrl && parentVideo.videoUrl) {
+                currentUrl = parentVideo.videoUrl;
+              }
+            }
+          }
+
+          if (currentPath) {
+            const refreshedUrl = await currentStorageProvider.getVideoUrl(pub.videoId || pub.id, currentPath);
+            if (refreshedUrl && refreshedUrl !== currentUrl) {
+              pubsModified = true;
+              return { ...pub, videoUrl: refreshedUrl, storagePath: currentPath };
+            }
+          }
+
+          if (currentUrl !== pub.videoUrl || currentPath !== pub.storagePath) {
+            pubsModified = true;
+            return { ...pub, videoUrl: currentUrl, storagePath: currentPath };
+          }
+
+          return pub;
+        })
+      );
+
+      if (!isCancelled && pubsModified) {
+        setPublications(updatedPubs);
       }
     }
 
@@ -904,6 +946,7 @@ export default function App() {
       {/* Scheduled Publication Preview Modal */}
       <VideoPreviewModal
         publication={previewPub}
+        availableVideos={videosList}
         onClose={() => setPreviewPub(null)}
         onPublishNow={handlePublishNow}
       />
