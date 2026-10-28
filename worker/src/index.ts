@@ -9,6 +9,9 @@ import {
   SplitRequestPayload,
   VideoPartItem,
   AuthenticatedUser,
+  ActiveSubtitleJob,
+  SubtitlesRequestPayload,
+  SubtitleFilesResult,
 } from './types.js';
 import {
   formatDurationHelper,
@@ -24,7 +27,12 @@ import {
   uploadFileToStorage,
   createSignedUrlForPath,
   cleanupJobCutsFromStorage,
+  cleanupJobSubtitlesFromStorage,
 } from './supabase.js';
+import {
+  checkSpeechConfigStatus,
+  transcribeVideoToSubtitles,
+} from './speech.js';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -88,8 +96,8 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Armazenamento em memória de trabalhos ativos no container
-// NOTA CLOUD RUN: Cada instância do Cloud Run mantém seu próprio mapa de trabalhos.
 const activeJobs = new Map<string, ActiveSplitJob>();
+const activeSubtitleJobs = new Map<string, ActiveSubtitleJob>();
 
 // -----------------------------------------------------------------------------
 // Middleware de Autenticação Obrigatória Supabase Auth
@@ -119,12 +127,16 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
 // Endpoints Públicos de Diagnóstico / Health Check
 // -----------------------------------------------------------------------------
 app.get('/health', (_req: Request, res: Response) => {
+  const speechStatus = checkSpeechConfigStatus();
   return res.json({
     status: 'ok',
     service: 'clipo-video-worker',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    activeJobsCount: activeJobs.size,
+    activeSplitJobsCount: activeJobs.size,
+    activeSubtitleJobsCount: activeSubtitleJobs.size,
+    speechConfigured: speechStatus.isConfigured,
+    speechDetails: speechStatus.details,
   });
 });
 
@@ -164,14 +176,22 @@ app.get('/api/videos/ffmpeg-status', async (_req: Request, res: Response) => {
   });
 });
 
+app.get('/api/videos/speech-status', (_req: Request, res: Response) => {
+  const status = checkSpeechConfigStatus();
+  return res.json({
+    success: true,
+    isConfigured: status.isConfigured,
+    details: status.details,
+  });
+});
+
 // -----------------------------------------------------------------------------
-// Endpoint Protegido: Consulta de Progresso (Polling)
+// Endpoint Protegido: Consulta de Progresso de Corte (Polling)
 // -----------------------------------------------------------------------------
 app.get('/api/videos/split-progress/:jobId', requireAuth, (req: Request, res: Response) => {
   const authUser = (req as Request & { user: AuthenticatedUser }).user;
   const { jobId } = req.params;
 
-  // Validação do formato do jobId
   if (!jobId || !/^[a-zA-Z0-9_-]{1,64}$/.test(jobId)) {
     return res.status(400).json({
       success: false,
@@ -191,7 +211,6 @@ app.get('/api/videos/split-progress/:jobId', requireAuth, (req: Request, res: Re
     });
   }
 
-  // Verificação rigorosa de autorização: o trabalho pertence a este usuário?
   if (job.userId !== authUser.id) {
     return res.status(403).json({
       success: false,
@@ -212,7 +231,7 @@ app.get('/api/videos/split-progress/:jobId', requireAuth, (req: Request, res: Re
 });
 
 // -----------------------------------------------------------------------------
-// Endpoint Protegido: Cancelamento de Trabalho
+// Endpoint Protegido: Cancelamento de Corte
 // -----------------------------------------------------------------------------
 app.post('/api/videos/cancel-split/:jobId', requireAuth, async (req: Request, res: Response) => {
   const authUser = (req as Request & { user: AuthenticatedUser }).user;
@@ -234,7 +253,6 @@ app.post('/api/videos/cancel-split/:jobId', requireAuth, async (req: Request, re
     });
   }
 
-  // Verificação rigorosa de autorização
   if (job.userId !== authUser.id) {
     return res.status(403).json({
       success: false,
@@ -242,18 +260,15 @@ app.post('/api/videos/cancel-split/:jobId', requireAuth, async (req: Request, re
     });
   }
 
-  // Marcar como cancelado
   job.cancelled = true;
   job.status = 'Processamento cancelado pelo usuário';
   job.finishedAt = Date.now();
   job.updatedAt = Date.now();
 
-  // Matar o processo FFmpeg em execução de forma limpa (process tree)
   if (job.process) {
     killProcessTree(job.process);
   }
 
-  // Limpar diretório temporário local específico deste job
   try {
     if (fs.existsSync(job.jobDir)) {
       fs.rmSync(job.jobDir, { recursive: true, force: true });
@@ -262,11 +277,8 @@ app.post('/api/videos/cancel-split/:jobId', requireAuth, async (req: Request, re
     console.warn(`[Worker Cleanup] Erro ao limpar diretório temporário do job ${jobId}:`, cleanErr.message);
   }
 
-  // Limpar cortes parciais enviados ao Supabase Storage (sem tocar no vídeo original)
   await cleanupJobCutsFromStorage(job.userId, jobId);
 
-  // Retém o job em memória com status 'cancelled' por 5 minutos
-  // para que o frontend que está em polling receba o status 'cancelled' sem erro 404
   setTimeout(() => {
     activeJobs.delete(jobId);
   }, JOB_RETENTION_MS);
@@ -284,7 +296,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
   const authUser = (req as Request & { user: AuthenticatedUser }).user;
   const payload: SplitRequestPayload = req.body;
 
-  // 1. Identidade e autorização estrita: SEMPRE usar authUser.id validado
   const userId = authUser.id;
   if (payload.userId && payload.userId !== userId) {
     return res.status(403).json({
@@ -293,7 +304,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
     });
   }
 
-  // 2. Limite de Concorrência
   let runningTotal = 0;
   let runningForUser = 0;
   for (const item of activeJobs.values()) {
@@ -308,7 +318,7 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
   if (runningForUser >= MAX_JOBS_PER_USER) {
     return res.status(409).json({
       success: false,
-      error: 'Já existe um processamento em andamento para a sua conta. Aguarde a conclusão ou cancele o trabalho anterior.',
+      error: 'Já existe um corte em andamento para a sua conta. Aguarde a conclusão ou cancele o trabalho anterior.',
     });
   }
 
@@ -319,13 +329,11 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
     });
   }
 
-  // 3. Validação do JobId
   let jobId = payload.jobId;
   if (!jobId || !/^[a-zA-Z0-9_-]{1,64}$/.test(jobId)) {
     jobId = `job_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
   }
 
-  // 4. Validação rigorosa dos parâmetros de corte (chunkSeconds)
   const rawChunk = payload.chunkSeconds ?? payload.duration;
   const chunkSeconds = typeof rawChunk === 'number' ? rawChunk : parseInt(String(rawChunk || ''), 10);
   if (!chunkSeconds || isNaN(chunkSeconds) || chunkSeconds < 10 || chunkSeconds > 3600) {
@@ -335,7 +343,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
     });
   }
 
-  // 5. Validação rigorosa do storagePath (NUNCA aceitar URLs arbitrárias externas)
   const storagePath = payload.storagePath;
   if (!storagePath || typeof storagePath !== 'string') {
     return res.status(400).json({
@@ -344,7 +351,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
     });
   }
 
-  // Proteção contra path traversal e validação de propriedade
   const sanitizedPath = path.normalize(storagePath).replace(/\\/g, '/');
   if (
     sanitizedPath.includes('..') ||
@@ -372,7 +378,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
     });
   }
 
-  // 6. Preparação do ambiente temporário isolado por job
   const jobDir = path.resolve(TEMP_ROOT, jobId);
   try {
     fs.mkdirSync(jobDir, { recursive: true });
@@ -401,15 +406,12 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
   activeJobs.set(jobId, jobTrack);
 
   try {
-    // 7. Download seguro do vídeo original do Supabase Storage
-    // O arquivo original é apenas lido e permanece 100% INTACTO no bucket
     await downloadVideoFromStorage(sanitizedPath, inputVideoPath, userId);
 
     if (jobTrack.cancelled) {
       throw new Error('Processamento cancelado pelo usuário.');
     }
 
-    // 8. Inspeção com ffprobe e validações de tamanho e duração
     jobTrack.status = 'Analisando propriedades do vídeo com ffprobe...';
     jobTrack.progressPercent = 10;
     jobTrack.updatedAt = Date.now();
@@ -430,7 +432,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
 
     const totalDuration = probe.duration;
 
-    // Calcular quantidade estimada de partes
     let estimatedParts = 1;
     if (totalDuration > chunkSeconds) {
       const fullParts = Math.floor(totalDuration / chunkSeconds);
@@ -453,7 +454,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
       .trim() || 'Vídeo';
     const nowTime = Date.now();
 
-    // 9. Execução sequencial dos cortes com FFmpeg
     for (let partIndex = 1; partIndex <= estimatedParts; partIndex++) {
       if (jobTrack.cancelled) {
         throw new Error('Processamento cancelado pelo usuário.');
@@ -474,7 +474,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
       const outThumbPath = path.resolve(jobDir, `thumb_${partIndex}.jpg`);
       jobTrack.tempFiles.push(outVideoPath, outThumbPath);
 
-      // Renderizar o segmento via spawn com processo isolado
       await cutVideoSegment(
         inputVideoPath,
         outVideoPath,
@@ -489,10 +488,8 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
         throw new Error('Processamento cancelado pelo usuário.');
       }
 
-      // Extrair miniatura da parte renderizada
       await extractThumbnail(outVideoPath, outThumbPath, 0.5);
 
-      // Validação pós-corte com ffprobe
       const partProbe = await probeVideoDetails(outVideoPath);
       if (!partProbe.hasVideo || partProbe.duration <= 0) {
         throw new Error(`Falha na integridade pós-corte da parte ${partIndex}.`);
@@ -501,7 +498,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
       jobTrack.status = `Enviando Parte ${partIndex} para o armazenamento seguro...`;
       jobTrack.updatedAt = Date.now();
 
-      // 10. Upload da parte e miniatura para o Supabase Storage (clipo-videos)
       const partStoragePath = `${userId}/videos/cuts/${jobId}/part_${partIndex}.mp4`;
       const thumbStoragePath = `${userId}/videos/cuts/${jobId}/thumb_${partIndex}.jpg`;
 
@@ -517,7 +513,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
 
       const videoSignedUrl = await createSignedUrlForPath(partStoragePath, 604800);
 
-      // Remover arquivos temporários locais desta parte imediatamente para poupar disco
       if (fs.existsSync(outVideoPath)) fs.unlinkSync(outVideoPath);
       if (fs.existsSync(outThumbPath)) fs.unlinkSync(outThumbPath);
 
@@ -550,7 +545,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
     jobTrack.finishedAt = Date.now();
     jobTrack.updatedAt = Date.now();
 
-    // Limpar o arquivo de entrada original temporário e o diretório do job
     if (fs.existsSync(inputVideoPath)) {
       try {
         fs.unlinkSync(inputVideoPath);
@@ -563,7 +557,6 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
       }
     } catch {}
 
-    // Reter trabalho concluído por 5 minutos antes de expirar da memória
     setTimeout(() => {
       activeJobs.delete(jobId);
     }, JOB_RETENTION_MS);
@@ -583,22 +576,18 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
 
     console.error(`[WORKER ERRO NO JOB ${jobId}]:`, err.message);
 
-    // Matar processo se ainda estiver rodando
     if (jobTrack.process) {
       killProcessTree(jobTrack.process);
     }
 
-    // Limpar arquivos temporários locais
     try {
       if (fs.existsSync(jobDir)) {
         fs.rmSync(jobDir, { recursive: true, force: true });
       }
     } catch {}
 
-    // Limpar uploads parciais no Supabase Storage sem tocar no vídeo original
     await cleanupJobCutsFromStorage(userId, jobId);
 
-    // Reter registro com o erro por 5 minutos para consulta no polling
     setTimeout(() => {
       activeJobs.delete(jobId);
     }, JOB_RETENTION_MS);
@@ -612,13 +601,401 @@ app.post('/api/videos/split', requireAuth, async (req: Request, res: Response) =
 });
 
 // -----------------------------------------------------------------------------
+// Endpoint Protegido: Consulta de Progresso de Legendas
+// -----------------------------------------------------------------------------
+function handleGetSubtitleProgress(req: Request, res: Response) {
+  const authUser = (req as Request & { user: AuthenticatedUser }).user;
+  const { jobId } = req.params;
+
+  if (!jobId || !/^[a-zA-Z0-9_-]{1,64}$/.test(jobId)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Identificador de trabalho (jobId) inválido.',
+    });
+  }
+
+  const job = activeSubtitleJobs.get(jobId);
+
+  if (!job) {
+    return res.json({
+      success: true,
+      found: false,
+      progressPercent: 100,
+      status: 'Trabalho de legendas concluído ou não encontrado nesta instância',
+      cancelled: false,
+    });
+  }
+
+  if (job.userId !== authUser.id) {
+    return res.status(403).json({
+      success: false,
+      error: 'Acesso negado: este trabalho de legendas pertence a outro usuário.',
+    });
+  }
+
+  return res.json({
+    success: true,
+    found: true,
+    progressPercent: job.progressPercent,
+    status: job.status,
+    cancelled: job.cancelled,
+    error: job.error,
+    result: job.result,
+  });
+}
+
+app.get('/api/videos/subtitles-progress/:jobId', requireAuth, handleGetSubtitleProgress);
+app.get('/api/videos/subtitles/progress/:jobId', requireAuth, handleGetSubtitleProgress);
+
+// -----------------------------------------------------------------------------
+// Endpoint Protegido: Cancelamento de Legendas
+// -----------------------------------------------------------------------------
+async function handleCancelSubtitles(req: Request, res: Response) {
+  const authUser = (req as Request & { user: AuthenticatedUser }).user;
+  const { jobId } = req.params;
+
+  if (!jobId || !/^[a-zA-Z0-9_-]{1,64}$/.test(jobId)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Identificador de trabalho (jobId) inválido.',
+    });
+  }
+
+  const job = activeSubtitleJobs.get(jobId);
+
+  if (!job) {
+    return res.json({
+      success: true,
+      message: 'Trabalho de legendas não encontrado ou já finalizado nesta instância.',
+    });
+  }
+
+  if (job.userId !== authUser.id) {
+    return res.status(403).json({
+      success: false,
+      error: 'Acesso negado: você não tem permissão para cancelar este trabalho de legendas.',
+    });
+  }
+
+  job.cancelled = true;
+  job.status = 'Geração de legendas cancelada pelo usuário';
+  job.finishedAt = Date.now();
+  job.updatedAt = Date.now();
+
+  if (job.process) {
+    killProcessTree(job.process);
+  }
+
+  try {
+    if (fs.existsSync(job.jobDir)) {
+      fs.rmSync(job.jobDir, { recursive: true, force: true });
+    }
+  } catch (cleanErr: any) {
+    console.warn(`[Worker Cleanup] Erro ao limpar pasta temporária do job de legendas ${jobId}:`, cleanErr.message);
+  }
+
+  await cleanupJobSubtitlesFromStorage(job.userId, jobId);
+
+  setTimeout(() => {
+    activeSubtitleJobs.delete(jobId);
+  }, JOB_RETENTION_MS);
+
+  return res.json({
+    success: true,
+    message: 'Geração de legendas cancelada e recursos limpos com sucesso.',
+  });
+}
+
+app.post('/api/videos/cancel-subtitles/:jobId', requireAuth, handleCancelSubtitles);
+app.post('/api/videos/subtitles/cancel/:jobId', requireAuth, handleCancelSubtitles);
+
+// -----------------------------------------------------------------------------
+// Endpoint Protegido Principal: Geração Automática de Legendas
+// -----------------------------------------------------------------------------
+async function handleGenerateSubtitles(req: Request, res: Response) {
+  const authUser = (req as Request & { user: AuthenticatedUser }).user;
+  const payload: SubtitlesRequestPayload = req.body;
+
+  const userId = authUser.id;
+  if (payload.userId && payload.userId !== userId) {
+    return res.status(403).json({
+      success: false,
+      error: 'Acesso negado: o userId informado na requisição não corresponde ao usuário autenticado.',
+    });
+  }
+
+  // 1. Verificar configuração do Speech-to-Text antes de consumir recursos
+  const speechConfig = checkSpeechConfigStatus();
+  if (!speechConfig.isConfigured) {
+    return res.status(503).json({
+      success: false,
+      error:
+        'A API Google Cloud Speech-to-Text não está configurada no ambiente do worker. ' +
+        'Configure as credenciais do Google Cloud (Service Account com a função "Speech Client" no Cloud Run, ' +
+        'GOOGLE_APPLICATION_CREDENTIALS ou GOOGLE_CREDENTIALS_JSON).',
+      details: speechConfig.details,
+    });
+  }
+
+  // 2. Limites de Concorrência
+  let runningTotal = 0;
+  let runningForUser = 0;
+  for (const item of activeSubtitleJobs.values()) {
+    if (!item.cancelled && !item.finishedAt) {
+      runningTotal++;
+      if (item.userId === userId) {
+        runningForUser++;
+      }
+    }
+  }
+
+  if (runningForUser >= MAX_JOBS_PER_USER) {
+    return res.status(409).json({
+      success: false,
+      error: 'Já existe uma geração de legendas em andamento para a sua conta. Aguarde a conclusão ou cancele o trabalho anterior.',
+    });
+  }
+
+  if (runningTotal >= MAX_CONCURRENT_JOBS) {
+    return res.status(503).json({
+      success: false,
+      error: 'O servidor de legendas está com a capacidade máxima ocupada no momento. Tente novamente em alguns minutos.',
+    });
+  }
+
+  // 3. Validação do JobId
+  let jobId = payload.jobId;
+  if (!jobId || !/^[a-zA-Z0-9_-]{1,64}$/.test(jobId)) {
+    jobId = `sub_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+  }
+
+  // 4. Validação rigorosa do storagePath
+  const storagePath = payload.storagePath;
+  if (!storagePath || typeof storagePath !== 'string') {
+    return res.status(400).json({
+      success: false,
+      error: 'Caminho do arquivo de vídeo (storagePath) no bucket seguro é obrigatório.',
+    });
+  }
+
+  const sanitizedPath = path.normalize(storagePath).replace(/\\/g, '/');
+  if (
+    sanitizedPath.includes('..') ||
+    sanitizedPath.includes('\0') ||
+    sanitizedPath.startsWith('/')
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: 'Caminho de armazenamento inválido (tentativa de navegação de diretório rejeitada).',
+    });
+  }
+
+  if (!sanitizedPath.startsWith(`${userId}/`)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Acesso negado: o vídeo indicado não pertence à sua conta.',
+    });
+  }
+
+  const validExts = /\.(mp4|mov|webm|m4v|avi|mkv)$/i;
+  if (!validExts.test(sanitizedPath)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Formato de vídeo não suportado. Utilize arquivos com extensão .mp4, .mov, .webm ou .mkv.',
+    });
+  }
+
+  const languageCode = (payload.languageCode || 'pt-BR').trim();
+
+  // 5. Preparação da pasta temporária isolada por job
+  const jobDir = path.resolve(TEMP_ROOT, jobId);
+  try {
+    fs.mkdirSync(jobDir, { recursive: true });
+  } catch (dirErr: any) {
+    return res.status(500).json({
+      success: false,
+      error: `Falha ao criar diretório temporário do trabalho: ${dirErr.message}`,
+    });
+  }
+
+  const inputVideoPath = path.resolve(jobDir, 'input_video.mp4');
+  const jobTrack: ActiveSubtitleJob = {
+    jobId,
+    userId,
+    storagePath: sanitizedPath,
+    cancelled: false,
+    progressPercent: 5,
+    status: 'Baixando vídeo original do armazenamento seguro...',
+    tempFiles: [inputVideoPath],
+    jobDir,
+    uploadedStoragePaths: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  activeSubtitleJobs.set(jobId, jobTrack);
+
+  try {
+    // 6. Download do vídeo original (apenas leitura; original permanece 100% intacto)
+    await downloadVideoFromStorage(sanitizedPath, inputVideoPath, userId);
+
+    if (jobTrack.cancelled) {
+      throw new Error('Processamento cancelado pelo usuário.');
+    }
+
+    // 7. Inspeção do vídeo com ffprobe
+    jobTrack.status = 'Analisando vídeo com ffprobe...';
+    jobTrack.progressPercent = 12;
+    jobTrack.updatedAt = Date.now();
+
+    const probe = await probeVideoDetails(inputVideoPath);
+
+    if (!probe.hasAudio) {
+      throw new Error('O vídeo não possui faixa de áudio audível para transcrição de legendas.');
+    }
+
+    if (probe.fileSizeBytes > MAX_FILE_SIZE_BYTES) {
+      throw new Error(
+        `O arquivo excede o limite máximo permitido de ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB.`
+      );
+    }
+
+    if (probe.duration > MAX_VIDEO_DURATION_SEC) {
+      throw new Error(
+        `A duração do vídeo (${Math.round(probe.duration)}s) excede o limite máximo permitido de 3 horas.`
+      );
+    }
+
+    // 8. Extração e Transcrição com Speech-to-Text
+    const transcriptOutput = await transcribeVideoToSubtitles(
+      inputVideoPath,
+      jobDir,
+      probe.duration,
+      languageCode,
+      (percent, statusText) => {
+        jobTrack.progressPercent = percent;
+        jobTrack.status = statusText;
+        jobTrack.updatedAt = Date.now();
+      },
+      (proc) => {
+        jobTrack.process = proc;
+      }
+    );
+
+    if (jobTrack.cancelled) {
+      throw new Error('Processamento cancelado pelo usuário.');
+    }
+
+    jobTrack.status = 'Enviando arquivos de legenda para o armazenamento seguro...';
+    jobTrack.progressPercent = 95;
+    jobTrack.updatedAt = Date.now();
+
+    // 9. Upload dos arquivos .vtt, .srt e .json para o Supabase Storage no caminho do usuário
+    const vttStoragePath = `${userId}/videos/subtitles/${jobId}/subtitles.vtt`;
+    const srtStoragePath = `${userId}/videos/subtitles/${jobId}/subtitles.srt`;
+    const jsonStoragePath = `${userId}/videos/subtitles/${jobId}/subtitles.json`;
+
+    await uploadFileToStorage(transcriptOutput.vttPath, vttStoragePath, 'text/vtt; charset=utf-8');
+    jobTrack.uploadedStoragePaths.push(vttStoragePath);
+
+    await uploadFileToStorage(transcriptOutput.srtPath, srtStoragePath, 'text/plain; charset=utf-8');
+    jobTrack.uploadedStoragePaths.push(srtStoragePath);
+
+    await uploadFileToStorage(transcriptOutput.jsonPath, jsonStoragePath, 'application/json; charset=utf-8');
+    jobTrack.uploadedStoragePaths.push(jsonStoragePath);
+
+    // Gerar URLs assinadas (Signed URLs) válidas por 7 dias
+    const [vttSignedUrl, srtSignedUrl, jsonSignedUrl] = await Promise.all([
+      createSignedUrlForPath(vttStoragePath, 604800),
+      createSignedUrlForPath(srtStoragePath, 604800),
+      createSignedUrlForPath(jsonStoragePath, 604800),
+    ]);
+
+    const resultData: SubtitleFilesResult = {
+      language: languageCode,
+      duration: probe.duration,
+      fullText: transcriptOutput.fullText,
+      segmentsCount: transcriptOutput.segments.length,
+      wordsCount: transcriptOutput.segments.reduce((acc, s) => acc + (s.words?.length || 0), 0),
+      segments: transcriptOutput.segments,
+      storagePaths: {
+        vtt: vttStoragePath,
+        srt: srtStoragePath,
+        json: jsonStoragePath,
+      },
+      signedUrls: {
+        vtt: vttSignedUrl,
+        srt: srtSignedUrl,
+        json: jsonSignedUrl,
+      },
+    };
+
+    jobTrack.result = resultData;
+    jobTrack.progressPercent = 100;
+    jobTrack.status = 'Legendas geradas e armazenadas com sucesso!';
+    jobTrack.finishedAt = Date.now();
+    jobTrack.updatedAt = Date.now();
+
+    // 10. Limpeza dos arquivos locais
+    try {
+      if (fs.existsSync(jobDir)) {
+        fs.rmSync(jobDir, { recursive: true, force: true });
+      }
+    } catch {}
+
+    setTimeout(() => {
+      activeSubtitleJobs.delete(jobId);
+    }, JOB_RETENTION_MS);
+
+    return res.json({
+      success: true,
+      jobId,
+      ...resultData,
+    });
+  } catch (err: any) {
+    const isCancelled = jobTrack.cancelled || err.message?.includes('cancelado');
+    jobTrack.error = err.message;
+    jobTrack.finishedAt = Date.now();
+    jobTrack.status = isCancelled ? 'Geração cancelada pelo usuário' : 'Falha na geração de legendas';
+
+    console.error(`[WORKER ERRO NO JOB DE LEGENDAS ${jobId}]:`, err.message);
+
+    if (jobTrack.process) {
+      killProcessTree(jobTrack.process);
+    }
+
+    try {
+      if (fs.existsSync(jobDir)) {
+        fs.rmSync(jobDir, { recursive: true, force: true });
+      }
+    } catch {}
+
+    await cleanupJobSubtitlesFromStorage(userId, jobId);
+
+    setTimeout(() => {
+      activeSubtitleJobs.delete(jobId);
+    }, JOB_RETENTION_MS);
+
+    return res.status(isCancelled ? 499 : 500).json({
+      success: false,
+      jobId,
+      error: err.message || 'Erro interno ao gerar legendas automáticas.',
+    });
+  }
+}
+
+app.post('/api/videos/subtitles', requireAuth, handleGenerateSubtitles);
+app.post('/api/videos/subtitles/generate', requireAuth, handleGenerateSubtitles);
+
+// -----------------------------------------------------------------------------
 // Encerramento Gracioso de Container (Graceful Shutdown para Cloud Run)
 // -----------------------------------------------------------------------------
 function handleShutdown(signal: string) {
   console.log(`[Clipo Video Worker] Recebido sinal ${signal}. Encerrando processos com segurança...`);
+
+  // Finalizar jobs de corte
   for (const [id, job] of activeJobs.entries()) {
     if (job.process) {
-      console.log(`[Worker Shutdown] Encerrando FFmpeg do job ${id}...`);
+      console.log(`[Worker Shutdown] Encerrando FFmpeg do job de corte ${id}...`);
       killProcessTree(job.process);
     }
     try {
@@ -627,6 +1004,20 @@ function handleShutdown(signal: string) {
       }
     } catch {}
   }
+
+  // Finalizar jobs de legendas
+  for (const [id, job] of activeSubtitleJobs.entries()) {
+    if (job.process) {
+      console.log(`[Worker Shutdown] Encerrando processo do job de legendas ${id}...`);
+      killProcessTree(job.process);
+    }
+    try {
+      if (fs.existsSync(job.jobDir)) {
+        fs.rmSync(job.jobDir, { recursive: true, force: true });
+      }
+    } catch {}
+  }
+
   process.exit(0);
 }
 
@@ -638,4 +1029,6 @@ app.listen(PORT, () => {
   console.log(`[Clipo Video Worker] Ambiente: ${process.env.NODE_ENV || 'production'}`);
   console.log(`[Clipo Video Worker] Origens CORS autorizadas:`, Array.from(allowedOriginsSet));
   console.log(`[Clipo Video Worker] Diretório temporário: ${TEMP_ROOT}`);
+  const speechStatus = checkSpeechConfigStatus();
+  console.log(`[Clipo Video Worker] Google Cloud Speech-to-Text: ${speechStatus.details}`);
 });

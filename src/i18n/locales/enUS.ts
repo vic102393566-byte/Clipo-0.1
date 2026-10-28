@@ -36,6 +36,7 @@ export const enUS: Translations = {
     no: 'No',
   },
   nav: {
+    home: 'Home',
     dashboard: 'Dashboard',
     videos: 'My Videos',
     agendamentos: 'Scheduled Posts',
@@ -49,6 +50,7 @@ export const enUS: Translations = {
     storage: 'Storage',
     logout: 'Sign Out',
     activeChannelsCount: 'active channels',
+    more: 'More',
   },
   header: {
     tabs: {

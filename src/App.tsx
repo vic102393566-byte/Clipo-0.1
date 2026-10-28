@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { DashboardView } from './components/views/DashboardView';
 import { VideosView } from './components/views/VideosView';
 import { ScheduleView } from './components/views/ScheduleView';
@@ -26,8 +27,14 @@ import {
   getStoredUserProfile,
   saveStoredUserProfile,
   isUserLoggedIn,
-  logoutUser
+  logoutUser,
+  applyCustomThemeColors,
+  clearCustomThemeColors,
+  PRESET_THEMES,
+  getDefaultCustomColors,
+  LIGHT_MODE_COLORS,
 } from './services/userSettingsService';
+import { useTheme } from './theme/ThemeContext';
 import { authService, DEFAULT_DEMO_USER, mapSupabaseUserToClipoUser } from './services/authService';
 import { supabase, isSupabaseConfigured, ensureSupabaseConfigured, isUUID } from './services/supabaseClient';
 
@@ -63,10 +70,43 @@ import {
 } from './services/storageService';
 
 export default function App() {
+  const { theme, resolvedTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const [tabHistory, setTabHistory] = useState<TabType[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Mobile navigation history handler
+  const handleNavigateTab = useCallback((targetTab: TabType) => {
+    setActiveTab((prev) => {
+      if (prev === targetTab) return prev;
+      setTabHistory((h) => [...h, prev]);
+      return targetTab;
+    });
+    setIsSidebarOpen(false);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
+
+  // Back button handler: returns to previous tab or falls back to 'dashboard'
+  const handleGoBack = useCallback(() => {
+    setTabHistory((prev) => {
+      if (prev.length > 0) {
+        const nextHistory = [...prev];
+        const lastTab = nextHistory.pop()!;
+        setActiveTab(lastTab);
+        return nextHistory;
+      } else {
+        setActiveTab('dashboard');
+        return [];
+      }
+    });
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
 
   // Authentication session state
   const [currentUser, setCurrentUser] = useState<User | null>(() => authService.getCurrentUser());
@@ -118,6 +158,21 @@ export default function App() {
 
   // User Profile state (persisted in localStorage)
   const [userProfile, setUserProfile] = useState<UserProfileSettings>(() => getStoredUserProfile(currentUserId));
+
+  // Aplicação reativa das cores e tema pré-definido do utilizador autenticado com prioridade para o Modo Claro
+  useEffect(() => {
+    if (isAuthenticated && currentUserId && (userProfile?.customColors || userProfile?.selectedTheme)) {
+      const themeId = userProfile.selectedTheme || 'clipo-original';
+      const colors = userProfile.customColors || PRESET_THEMES[themeId]?.colors || getDefaultCustomColors();
+      applyCustomThemeColors(colors, themeId, resolvedTheme);
+    } else {
+      if (resolvedTheme === 'light') {
+        applyCustomThemeColors(LIGHT_MODE_COLORS, 'light-clean', 'light');
+      } else {
+        clearCustomThemeColors();
+      }
+    }
+  }, [isAuthenticated, currentUserId, userProfile?.customColors, userProfile?.selectedTheme, resolvedTheme]);
 
   // Close sidebar on Escape key
   useEffect(() => {
@@ -581,9 +636,11 @@ export default function App() {
 
   // Terminate authentication session and redirect to Login
   const handleLogout = async () => {
+    clearCustomThemeColors();
     await authService.logout();
     setCurrentUser(null);
     setIsAuthenticated(false);
+    setUserProfile(getStoredUserProfile(undefined));
     setConnectedAccounts(initialConnectedAccounts);
   };
 
@@ -683,7 +740,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
+    <div className="flex min-h-screen bg-[var(--user-bg-main,#0B0F17)] text-[var(--user-text-primary,#F8FAFC)] font-sans transition-colors duration-200">
       {/* Hidden Native File Input for Video Upload */}
       <input
         ref={fileInputRef}
@@ -759,7 +816,7 @@ export default function App() {
       {/* Sidebar Navigation - Hidden drawer by default */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleNavigateTab}
         isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}
         onOpenUpload={handleOpenUploadPicker}
@@ -770,7 +827,7 @@ export default function App() {
       />
 
       {/* Main Content Area - Full width by default */}
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0 w-full">
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0 w-full relative">
         {/* Top Header */}
         <TopHeader
           activeTab={activeTab}
@@ -779,22 +836,25 @@ export default function App() {
           onOpenUpload={handleOpenUploadPicker}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          onNavigateTab={(tab) => setActiveTab(tab)}
+          onNavigateTab={handleNavigateTab}
+          onGoBack={handleGoBack}
+          canGoBack={activeTab !== 'dashboard' || tabHistory.length > 0}
         />
 
-        {/* Scrollable Viewport */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        {/* Scrollable Viewport - pb-24 on mobile ensures bottom navigation bar never covers content */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
           <div className="mx-auto max-w-7xl">
             {activeTab === 'dashboard' && (
               <DashboardView
                 publications={publications}
                 connectedAccounts={connectedAccounts}
                 videosCount={videosList.length}
+                userName={userProfile?.name}
                 storageUsage={storageUsage}
                 onOpenUpload={handleOpenUploadPicker}
                 onSelectPublication={(pub) => setPreviewPub(pub)}
                 onDeletePublication={handleDeletePublication}
-                onNavigateTab={(tab) => setActiveTab(tab)}
+                onNavigateTab={handleNavigateTab}
               />
             )}
 
@@ -809,7 +869,7 @@ export default function App() {
                 onScheduleVideo={(video) => handleOpenScheduleModal(video)}
                 onGenerateAIMetadata={handleOpenAIMetadata}
                 isOverLimit={storageUsage.isOverLimit}
-                onUpgradeClick={() => setActiveTab('plano')}
+                onUpgradeClick={() => handleNavigateTab('plano')}
                 planName={currentPlanConfig.name}
                 limitFormatted={currentPlanConfig.labelLimit}
               />
@@ -829,6 +889,7 @@ export default function App() {
                 publications={publications}
                 onOpenSchedule={() => handleOpenScheduleModal()}
                 onSelectPublication={(pub) => setPreviewPub(pub)}
+                onBack={handleGoBack}
               />
             )}
 
@@ -841,13 +902,14 @@ export default function App() {
                 onUpdateTikTokAccount={handleUpdateTikTokAccount}
                 maxSocialAccounts={currentPlanConfig.maxSocialAccounts}
                 planName={currentPlanConfig.name}
-                onUpgradeClick={() => setActiveTab('plano')}
+                onUpgradeClick={() => handleNavigateTab('plano')}
+                onBack={handleGoBack}
               />
             )}
 
             {activeTab === 'armazenamento' && (
               <StorageView
-                onUpgradeClick={() => setActiveTab('plano')}
+                onUpgradeClick={() => handleNavigateTab('plano')}
                 storageUsage={storageUsage}
                 planTier={currentPlanConfig.name}
               />
@@ -860,6 +922,7 @@ export default function App() {
                 onSwitchPlan={handleSwitchPlan}
                 connectedAccountsCount={connectedAccounts.filter((a) => a.connected).length}
                 videosCount={videosList.length}
+                onBack={handleGoBack}
               />
             )}
 
@@ -870,10 +933,20 @@ export default function App() {
                   saveStoredUserProfile(updated, currentUserId);
                 }}
                 onLogout={handleLogout}
+                onBack={handleGoBack}
               />
             )}
           </div>
         </main>
+
+        {/* Mobile Fixed Bottom Navigation Bar (Exclusive to mobile < 768px) */}
+        <MobileBottomNav
+          activeTab={activeTab}
+          onNavigateTab={handleNavigateTab}
+          onOpenUpload={handleOpenUploadPicker}
+          onOpenMore={() => setIsSidebarOpen((prev) => !prev)}
+          isSidebarOpen={isSidebarOpen}
+        />
       </div>
 
       {/* Video Upload Progress Modal (Handles Name, Size, Progress Bar & Upload) */}
@@ -887,7 +960,7 @@ export default function App() {
         onUploadComplete={handleUploadComplete}
         onOpenSplit={handleOpenSplitVideo}
         onScheduleVideo={(video) => handleOpenScheduleModal(video)}
-        onNavigateVideos={() => setActiveTab('videos')}
+        onNavigateVideos={() => handleNavigateTab('videos')}
       />
 
       {/* Video Player Modal for Viewing, Editing and Deleting Videos */}

@@ -66,3 +66,68 @@ export interface AuthenticatedUser {
   id: string;
   email?: string;
 }
+
+// -----------------------------------------------------------------------------
+// Tipos para Geração Automática de Legendas
+// -----------------------------------------------------------------------------
+
+export interface SubtitleWord {
+  word: string;
+  start: number; // segundos com precisão decimal
+  end: number;
+  confidence?: number;
+}
+
+export interface SubtitleSegment {
+  id: number;
+  start: number; // segundos
+  end: number; // segundos
+  text: string;
+  words?: SubtitleWord[];
+}
+
+export interface SubtitleFilesResult {
+  language: string;
+  duration: number;
+  fullText: string;
+  segmentsCount: number;
+  wordsCount: number;
+  segments: SubtitleSegment[];
+  storagePaths: {
+    vtt: string;
+    srt: string;
+    json: string;
+  };
+  signedUrls: {
+    vtt: string;
+    srt: string;
+    json: string;
+  };
+}
+
+export interface SubtitlesRequestPayload {
+  jobId?: string;
+  storagePath: string;
+  languageCode?: string; // padrão: 'pt-BR'
+  userId?: string;
+  videoId?: string;
+  title?: string;
+}
+
+export interface ActiveSubtitleJob {
+  jobId: string;
+  userId: string;
+  storagePath: string;
+  cancelled: boolean;
+  progressPercent: number;
+  status: string;
+  error?: string;
+  tempFiles: string[];
+  jobDir: string;
+  uploadedStoragePaths: string[];
+  process?: ChildProcess;
+  createdAt: number;
+  updatedAt: number;
+  finishedAt?: number;
+  result?: SubtitleFilesResult;
+}

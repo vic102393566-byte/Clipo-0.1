@@ -100,7 +100,7 @@ export async function downloadVideoFromStorage(
 }
 
 /**
- * Uploads a cut segment or thumbnail back to Supabase Storage
+ * Uploads a cut segment, thumbnail or subtitle file back to Supabase Storage
  */
 export async function uploadFileToStorage(
   localFilePath: string,
@@ -123,7 +123,7 @@ export async function uploadFileToStorage(
 }
 
 /**
- * Creates a signed URL for a newly uploaded segment or thumbnail
+ * Creates a signed URL for a newly uploaded segment, thumbnail or subtitle file
  */
 export async function createSignedUrlForPath(
   storagePath: string,
@@ -173,5 +173,39 @@ export async function cleanupJobCutsFromStorage(
     }
   } catch (err: any) {
     console.warn(`[Supabase Cleanup] Erro ao limpar cortes parciais do job ${jobId}:`, err.message);
+  }
+}
+
+/**
+ * Removes partial subtitle outputs of a specific job from Supabase Storage
+ * Strictly restricted to `${userId}/videos/subtitles/${jobId}/`.
+ */
+export async function cleanupJobSubtitlesFromStorage(
+  userId: string,
+  jobId: string
+): Promise<void> {
+  if (!userId || !jobId) return;
+
+  try {
+    const client = getSupabaseAdminClient();
+    const folderPath = `${userId}/videos/subtitles/${jobId}`;
+
+    const { data: list, error: listError } = await client.storage
+      .from(SUPABASE_VIDEOS_BUCKET)
+      .list(folderPath);
+
+    if (listError || !list || list.length === 0) {
+      return;
+    }
+
+    const filesToRemove = list
+      .filter((item) => item.name && item.id)
+      .map((item) => `${folderPath}/${item.name}`);
+
+    if (filesToRemove.length > 0) {
+      await client.storage.from(SUPABASE_VIDEOS_BUCKET).remove(filesToRemove);
+    }
+  } catch (err: any) {
+    console.warn(`[Supabase Cleanup] Erro ao limpar legendas parciais do job ${jobId}:`, err.message);
   }
 }

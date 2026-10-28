@@ -36,6 +36,7 @@ export interface Translations {
     no: string;
   };
   nav: {
+    home: string;
     dashboard: string;
     videos: string;
     agendamentos: string;
@@ -49,6 +50,7 @@ export interface Translations {
     storage: string;
     logout: string;
     activeChannelsCount: string;
+    more: string;
   };
   header: {
     tabs: Record<string, { title: string; subtitle: string }>;

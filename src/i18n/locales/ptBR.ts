@@ -36,6 +36,7 @@ export const ptBR: Translations = {
     no: 'Não',
   },
   nav: {
+    home: 'Início',
     dashboard: 'Dashboard',
     videos: 'Meus vídeos',
     agendamentos: 'Agendamentos',
@@ -49,6 +50,7 @@ export const ptBR: Translations = {
     storage: 'Armazenamento',
     logout: 'Sair da conta',
     activeChannelsCount: 'canais ativos',
+    more: 'Mais',
   },
   header: {
     tabs: {

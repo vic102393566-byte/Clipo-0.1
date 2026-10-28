@@ -15,17 +15,33 @@ import {
   Loader2,
   KeyRound,
   Globe,
-  Check
+  Check,
+  Sun,
+  Moon,
+  Monitor,
+  Palette,
+  RotateCcw,
+  Sparkles,
 } from 'lucide-react';
 import {
   UserProfileSettings,
+  UserCustomColors,
+  DEFAULT_CLIPO_COLORS,
+  getDefaultCustomColors,
+  sanitizeCustomColors,
+  normalizeHexColor,
+  isValidHexColor,
   getStoredUserProfile,
   saveStoredUserProfile,
   saveCustomPassword,
   verifyUserPassword,
-  resetUserAccountData
+  resetUserAccountData,
+  PRESET_THEMES,
+  PresetThemeId,
+  PresetTheme,
 } from '../../services/userSettingsService';
 import { useI18n } from '../../i18n/I18nContext';
+import { useTheme } from '../../theme/ThemeContext';
 import { Language } from '../../i18n/types';
 
 interface SettingsViewProps {
@@ -40,6 +56,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onBack,
 }) => {
   const { t, language, setLanguage } = useI18n();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const isEn = language === 'en-US';
 
   // Load persisted user profile
@@ -55,6 +72,93 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Selected Preset Theme State
+  const [selectedThemeId, setSelectedThemeId] = useState<PresetThemeId>(() => {
+    return profile.selectedTheme || 'clipo-original';
+  });
+  const [customColors, setCustomColors] = useState<UserCustomColors>(() => {
+    const tId = profile.selectedTheme || 'clipo-original';
+    return PRESET_THEMES[tId]?.colors || getDefaultCustomColors();
+  });
+  const [appearanceMsg, setAppearanceMsg] = useState<{ type: 'success' | 'info'; text: string } | null>(null);
+  const [isSavingAppearance, setIsSavingAppearance] = useState(false);
+
+  // Switch chosen preset theme
+  const handleSelectPresetTheme = (themeId: PresetThemeId) => {
+    setSelectedThemeId(themeId);
+    const themeData = PRESET_THEMES[themeId];
+    setCustomColors(themeData.colors);
+  };
+
+  // Save selected preset theme to profile and notify parent app
+  const handleSaveAppearance = () => {
+    setIsSavingAppearance(true);
+    setAppearanceMsg(null);
+    try {
+      const themeData = PRESET_THEMES[selectedThemeId];
+      const sanitized = sanitizeCustomColors(themeData.colors);
+      const updatedProfile: UserProfileSettings = {
+        ...profile,
+        selectedTheme: selectedThemeId,
+        customColors: sanitized,
+      };
+
+      setProfile(updatedProfile);
+      saveStoredUserProfile(updatedProfile);
+      if (onProfileUpdated) {
+        onProfileUpdated(updatedProfile);
+      }
+
+      // Sincroniza com ThemeContext
+      if (themeData.isLight) {
+        setTheme('light');
+      } else {
+        setTheme('dark');
+      }
+
+      setAppearanceMsg({
+        type: 'success',
+        text: isEn ? `Theme "${themeData.name}" applied and saved successfully!` : `Tema "${themeData.name}" aplicado e guardado com sucesso!`,
+      });
+      setTimeout(() => setAppearanceMsg(null), 3500);
+    } catch {
+      setAppearanceMsg({
+        type: 'info',
+        text: isEn ? 'Failed to save theme settings.' : 'Erro ao guardar configurações do tema.',
+      });
+    } finally {
+      setIsSavingAppearance(false);
+    }
+  };
+
+  // Reset theme back to Clipo official default theme (Clipo Original)
+  const handleResetAppearance = () => {
+    const original = PRESET_THEMES['clipo-original'];
+    setSelectedThemeId('clipo-original');
+    setCustomColors(original.colors);
+    setAppearanceMsg(null);
+
+    const updatedProfile: UserProfileSettings = {
+      ...profile,
+      selectedTheme: 'clipo-original',
+      customColors: original.colors,
+    };
+
+    setProfile(updatedProfile);
+    saveStoredUserProfile(updatedProfile);
+    if (onProfileUpdated) {
+      onProfileUpdated(updatedProfile);
+    }
+
+    setTheme('dark');
+
+    setAppearanceMsg({
+      type: 'info',
+      text: isEn ? 'Theme reset to Clipo Original.' : 'Tema restaurado para Clipo Original.',
+    });
+    setTimeout(() => setAppearanceMsg(null), 3500);
+  };
 
   // Modals for sensitive actions
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -314,7 +418,419 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Profile Information & Avatar */}
+      {/* 2. Interface Appearance / Theme Selector Card (Claro, Escuro, Sistema) */}
+      <div className="rounded-2xl border border-[#27272A] bg-[#151515] p-5 sm:p-6 space-y-4">
+        <div className="border-b border-[#27272A] pb-4">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Moon className="h-4 w-4 text-[#F97316]" />
+            <span>{t.header.theme}</span>
+          </h3>
+          <p className="text-xs text-[#FDBA74] mt-1">
+            {isEn
+              ? 'Choose between dark mode, light mode, or automatic system appearance.'
+              : 'Escolha entre os modos escuro, claro ou acompanhamento automático do sistema.'}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          {/* Option 1: Escuro / Dark */}
+          <button
+            type="button"
+            onClick={() => setTheme('dark')}
+            className={`flex items-center justify-between rounded-xl border p-3.5 text-xs transition cursor-pointer active:scale-[0.98] ${
+              theme === 'dark'
+                ? 'border-[var(--user-btn-primary,#4F46E5)] bg-[var(--user-btn-primary,#4F46E5)]/10 text-slate-900 dark:text-white font-semibold shadow-sm'
+                : 'border-[#27272A] bg-[#0A0A0A] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-[#3F3F46]'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-[#18181B] text-[var(--user-btn-primary,#4F46E5)]">
+                <Moon className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-slate-900 dark:text-white">{t.header.themeDark}</p>
+                <p className="text-[11px] text-slate-500 dark:text-[#FDBA74]">
+                  {isEn ? 'High-contrast dark palette' : 'Visual escuro clássico'}
+                </p>
+              </div>
+            </div>
+            {theme === 'dark' && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--user-btn-primary,#4F46E5)] text-white">
+                <Check className="h-3 w-3 stroke-[3]" />
+              </span>
+            )}
+          </button>
+
+          {/* Option 2: Claro / Light */}
+          <button
+            type="button"
+            onClick={() => setTheme('light')}
+            className={`flex items-center justify-between rounded-xl border p-3.5 text-xs transition cursor-pointer active:scale-[0.98] ${
+              theme === 'light'
+                ? 'border-[var(--user-btn-primary,#4F46E5)] bg-[var(--user-btn-primary,#4F46E5)]/10 text-slate-900 dark:text-white font-semibold shadow-sm'
+                : 'border-[#27272A] bg-[#0A0A0A] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-[#3F3F46]'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 dark:bg-[#18181B] text-amber-500">
+                <Sun className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-slate-900 dark:text-white">{t.header.themeLight}</p>
+                <p className="text-[11px] text-slate-500 dark:text-[#FDBA74]">
+                  {isEn ? 'Clean light canvas & cards' : 'Interface com fundo claro'}
+                </p>
+              </div>
+            </div>
+            {theme === 'light' && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--user-btn-primary,#4F46E5)] text-white">
+                <Check className="h-3 w-3 stroke-[3]" />
+              </span>
+            )}
+          </button>
+
+          {/* Option 3: Sistema / System */}
+          <button
+            type="button"
+            onClick={() => setTheme('system')}
+            className={`flex items-center justify-between rounded-xl border p-3.5 text-xs transition cursor-pointer active:scale-[0.98] ${
+              theme === 'system'
+                ? 'border-[var(--user-btn-primary,#4F46E5)] bg-[var(--user-btn-primary,#4F46E5)]/10 text-slate-900 dark:text-white font-semibold shadow-sm'
+                : 'border-[#27272A] bg-[#0A0A0A] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-[#3F3F46]'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-[#18181B] text-[var(--user-btn-primary,#4F46E5)]">
+                <Monitor className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-slate-900 dark:text-white">
+                  {isEn ? 'System' : 'Sistema'}
+                  {theme === 'system' && (
+                    <span className="ml-1 text-[10px] text-slate-500 dark:text-slate-400 font-normal">
+                      ({resolvedTheme === 'dark' ? (isEn ? 'Dark' : 'Escuro') : (isEn ? 'Light' : 'Claro')})
+                    </span>
+                  )}
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-[#FDBA74]">
+                  {isEn ? 'Syncs with your device theme' : 'Sincroniza com o seu dispositivo'}
+                </p>
+              </div>
+            </div>
+            {theme === 'system' && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--user-btn-primary,#4F46E5)] text-white">
+                <Check className="h-3 w-3 stroke-[3]" />
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Personalizar Aparência Card */}
+      <div className="rounded-2xl border border-[#27272A] bg-[#151515] p-5 sm:p-6 space-y-6">
+        <div className="border-b border-[#27272A] pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Palette className="h-4 w-4 text-[#F97316]" />
+                <span>{isEn ? 'Customize Appearance' : 'Personalizar aparência'}</span>
+              </h3>
+              <p className="text-xs text-[#FDBA74] mt-1">
+                {isEn
+                  ? 'Define your individual interface colors. Changes preview in real-time below and only apply when saved.'
+                  : 'Personalize as cores da sua própria interface. As alterações são pré-visualizadas abaixo em tempo real e só afetam o sistema após guardar.'}
+              </p>
+            </div>
+
+            {profile.customColors && (
+              <span className="self-start sm:self-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                <span>{isEn ? 'Custom Colors Active' : 'Cores personalizadas ativas'}</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Feedback message for appearance actions */}
+        {appearanceMsg && (
+          <div
+            className={`flex items-center justify-between rounded-xl border p-3.5 text-xs transition animate-in fade-in ${
+              appearanceMsg.type === 'success'
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                : 'border-blue-500/30 bg-blue-500/10 text-blue-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+              <span>{appearanceMsg.text}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAppearanceMsg(null)}
+              className="text-xs font-semibold opacity-70 hover:opacity-100 cursor-pointer ml-2"
+            >
+              {t.common.close}
+            </button>
+          </div>
+        )}
+
+        {/* 5 Preset Themes Grid */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+              {isEn ? 'Select a Preset Theme' : 'Selecione um Tema Pré-definido'}
+            </h4>
+            <span className="text-[11px] text-[#FDBA74]">
+              {isEn ? '5 Curated color styles' : '5 Estilos visuais balanceados'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {(Object.values(PRESET_THEMES) as PresetTheme[]).map((thm) => {
+              const isSelected = selectedThemeId === thm.id;
+              const isCurrentlyActiveInProfile = (profile.selectedTheme || 'clipo-original') === thm.id;
+
+              return (
+                <button
+                  type="button"
+                  key={thm.id}
+                  onClick={() => handleSelectPresetTheme(thm.id)}
+                  className={`group relative text-left rounded-xl border p-4 transition-all duration-200 cursor-pointer active:scale-[0.98] ${
+                    isSelected
+                      ? 'border-[#F97316] bg-[#F97316]/10 shadow-lg shadow-[#F97316]/10 ring-1 ring-[#F97316]'
+                      : 'border-[#27272A] bg-[#0A0A0A] hover:border-[#3F3F46] hover:bg-[#121212]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-white group-hover:text-[#F97316] transition-colors">
+                          {thm.name}
+                        </span>
+                        {isCurrentlyActiveInProfile && (
+                          <span className="text-[9px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                            {isEn ? 'Current' : 'Atual'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] font-medium text-[#FDBA74] mt-0.5">
+                        {thm.subtitle}
+                      </p>
+                    </div>
+
+                    <div
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all ${
+                        isSelected
+                          ? 'border-[#F97316] bg-[#F97316] text-white'
+                          : 'border-[#3F3F46] bg-transparent'
+                      }`}
+                    >
+                      {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                    {thm.description}
+                  </p>
+
+                  {/* Visual Palette Preview Swatches */}
+                  <div className="mt-3.5 pt-3 border-t border-white/5 flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {isEn ? 'Palette' : 'Paleta'}
+                    </span>
+                    <div className="flex items-center -space-x-1.5">
+                      <span
+                        className="inline-block h-5 w-5 rounded-full border-2 border-[#151515] shadow-sm"
+                        style={{ backgroundColor: thm.colors.bgMain }}
+                        title={`Fundo: ${thm.colors.bgMain}`}
+                      />
+                      <span
+                        className="inline-block h-5 w-5 rounded-full border-2 border-[#151515] shadow-sm"
+                        style={{ backgroundColor: thm.colors.bgCard }}
+                        title={`Cartão: ${thm.colors.bgCard}`}
+                      />
+                      <span
+                        className="inline-block h-5 w-5 rounded-full border-2 border-[#151515] shadow-sm"
+                        style={{ backgroundColor: thm.colors.btnPrimary }}
+                        title={`Botão: ${thm.colors.btnPrimary}`}
+                      />
+                      <span
+                        className="inline-block h-5 w-5 rounded-full border-2 border-[#151515] shadow-sm"
+                        style={{ backgroundColor: thm.colors.accent }}
+                        title={`Destaque: ${thm.colors.accent}`}
+                      />
+                      <span
+                        className="inline-block h-5 w-5 rounded-full border-2 border-[#151515] shadow-sm"
+                        style={{ backgroundColor: thm.colors.cardBorder }}
+                        title={`Borda: ${thm.colors.cardBorder}`}
+                      />
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 4. Isolated Live Preview */}
+        <div className="space-y-2.5 pt-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+              <span>{isEn ? 'Live Preview (Isolated)' : 'Pré-visualização em tempo real (Isolada)'}</span>
+            </h4>
+            <span className="text-[11px] text-[#FDBA74]">
+              {isEn ? 'Isolated to container • Not yet applied globally' : 'Isolado ao contentor • Não aplicado globalmente'}
+            </span>
+          </div>
+
+          <div
+            className="rounded-xl p-4 sm:p-6 border transition-all duration-200 overflow-hidden shadow-inner"
+            style={{
+              backgroundColor: isValidHexColor(customColors.bgMain)
+                ? normalizeHexColor(customColors.bgMain)!
+                : DEFAULT_CLIPO_COLORS.bgMain,
+              borderColor: '#27272A',
+            }}
+          >
+            {/* Inner Card Demonstration */}
+            <div
+              className="rounded-xl p-4 sm:p-5 border-2 transition-all duration-200 space-y-4 max-w-md mx-auto shadow-lg"
+              style={{
+                backgroundColor: isValidHexColor(customColors.bgCard)
+                  ? normalizeHexColor(customColors.bgCard)!
+                  : DEFAULT_CLIPO_COLORS.bgCard,
+                borderColor: isValidHexColor(customColors.cardBorder)
+                  ? normalizeHexColor(customColors.cardBorder)!
+                  : DEFAULT_CLIPO_COLORS.cardBorder,
+              }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full"
+                      style={{
+                        backgroundColor: isValidHexColor(customColors.accent)
+                          ? normalizeHexColor(customColors.accent)!
+                          : DEFAULT_CLIPO_COLORS.accent,
+                      }}
+                    />
+                    <p
+                      className="text-xs font-medium opacity-80"
+                      style={{
+                        color: isValidHexColor(customColors.textPrimary)
+                          ? normalizeHexColor(customColors.textPrimary)!
+                          : DEFAULT_CLIPO_COLORS.textPrimary,
+                      }}
+                    >
+                      {isEn ? 'Card & Metrics' : 'Cartão de Métricas'}
+                    </p>
+                  </div>
+                  <h4
+                    className="text-lg font-bold mt-1"
+                    style={{
+                      color: isValidHexColor(customColors.textPrimary)
+                        ? normalizeHexColor(customColors.textPrimary)!
+                        : DEFAULT_CLIPO_COLORS.textPrimary,
+                    }}
+                  >
+                    {isEn ? '12.4 GB / 50 GB Used' : '12,4 GB / 50 GB Utilizados'}
+                  </h4>
+                </div>
+
+                {/* Accent Tag / Badge */}
+                <span
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold border shrink-0"
+                  style={{
+                    backgroundColor: `${isValidHexColor(customColors.accent) ? normalizeHexColor(customColors.accent)! : DEFAULT_CLIPO_COLORS.accent}25`,
+                    color: isValidHexColor(customColors.accent)
+                      ? normalizeHexColor(customColors.accent)!
+                      : DEFAULT_CLIPO_COLORS.accent,
+                    borderColor: `${isValidHexColor(customColors.accent) ? normalizeHexColor(customColors.accent)! : DEFAULT_CLIPO_COLORS.accent}50`,
+                  }}
+                >
+                  {isEn ? 'Accent Highlight' : 'Elemento de Destaque'}
+                </span>
+              </div>
+
+              {/* Progress bar demonstration with accent */}
+              <div className="w-full h-2 rounded-full overflow-hidden bg-black/40">
+                <div
+                  className="h-full rounded-full transition-all duration-200"
+                  style={{
+                    width: '45%',
+                    backgroundColor: isValidHexColor(customColors.accent)
+                      ? normalizeHexColor(customColors.accent)!
+                      : DEFAULT_CLIPO_COLORS.accent,
+                  }}
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+                <span
+                  className="text-xs opacity-75 font-medium"
+                  style={{
+                    color: isValidHexColor(customColors.textPrimary)
+                      ? normalizeHexColor(customColors.textPrimary)!
+                      : DEFAULT_CLIPO_COLORS.textPrimary,
+                  }}
+                >
+                  {isEn ? 'Typography high contrast sample' : 'Amostra de leitura e tipografia'}
+                </span>
+
+                {/* Primary Action Button */}
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold shadow-md transition shrink-0 cursor-default"
+                  style={{
+                    backgroundColor: isValidHexColor(customColors.btnPrimary)
+                      ? normalizeHexColor(customColors.btnPrimary)!
+                      : DEFAULT_CLIPO_COLORS.btnPrimary,
+                    color: '#FFFFFF',
+                  }}
+                >
+                  {isEn ? 'Primary Button' : 'Botão Principal'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 5. Action Buttons (Guardar tema / Restaurar Clipo Original) */}
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-[#27272A]">
+          <button
+            type="button"
+            onClick={handleResetAppearance}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-2.5 text-xs font-semibold text-slate-300 hover:text-white hover:border-[#3F3F46] transition active:scale-[0.98] cursor-pointer"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>{isEn ? 'Reset to Clipo Original' : 'Restaurar Clipo Original'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveAppearance}
+            disabled={isSavingAppearance}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-[#F97316]/30 hover:bg-[#EA580C] transition active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+          >
+            {isSavingAppearance ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>{t.common.saving}</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4" />
+                <span>{isEn ? 'Save Theme' : 'Guardar tema'}</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* 4. Profile Information & Avatar */}
       <div className="rounded-2xl border border-[#27272A] bg-[#151515] p-5 sm:p-6 space-y-6">
         <div className="border-b border-[#27272A] pb-4">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">

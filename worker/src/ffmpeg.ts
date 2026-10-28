@@ -253,3 +253,120 @@ export function extractThumbnail(
     });
   });
 }
+
+/**
+ * Extrai o áudio completo do vídeo para formato FLAC mono 16kHz otimizado para Speech-to-Text
+ */
+export function extractAudioForSpeech(
+  videoPath: string,
+  outputAudioPath: string,
+  onProcessCreated?: (process: ChildProcess) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-y',
+      '-i', videoPath,
+      '-vn',
+      '-ac', '1',
+      '-ar', '16000',
+      '-c:a', 'flac',
+      outputAudioPath,
+    ];
+
+    const child = spawn('ffmpeg', args, {
+      detached: process.platform !== 'win32',
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+
+    let stderrData = '';
+    let wasErrorHandled = false;
+
+    if (onProcessCreated) {
+      onProcessCreated(child);
+    }
+
+    child.stderr?.on('data', (chunk) => {
+      stderrData = (stderrData + chunk.toString()).slice(-3000);
+    });
+
+    child.on('error', (err) => {
+      wasErrorHandled = true;
+      reject(new Error(`Falha ao extrair áudio com FFmpeg: ${err.message}`));
+    });
+
+    child.on('close', (code, signal) => {
+      if (wasErrorHandled) return;
+
+      if (signal === 'SIGKILL' || signal === 'SIGTERM') {
+        return reject(new Error('Extração de áudio interrompida intencionalmente (cancelamento).'));
+      }
+
+      if (code !== 0) {
+        return reject(
+          new Error(`FFmpeg falhou ao extrair áudio (código ${code}): ${stderrData || 'Erro desconhecido'}`)
+        );
+      }
+
+      resolve();
+    });
+  });
+}
+
+/**
+ * Extrai um pedaço (chunk) de áudio de no máximo X segundos para o Speech-to-Text síncrono
+ */
+export function extractAudioChunk(
+  inputAudioPath: string,
+  outputChunkPath: string,
+  startSec: number,
+  durationSec: number,
+  onProcessCreated?: (process: ChildProcess) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-y',
+      '-ss', startSec.toString(),
+      '-i', inputAudioPath,
+      '-t', durationSec.toString(),
+      '-c:a', 'flac',
+      outputChunkPath,
+    ];
+
+    const child = spawn('ffmpeg', args, {
+      detached: process.platform !== 'win32',
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+
+    let stderrData = '';
+    let wasErrorHandled = false;
+
+    if (onProcessCreated) {
+      onProcessCreated(child);
+    }
+
+    child.stderr?.on('data', (chunk) => {
+      stderrData = (stderrData + chunk.toString()).slice(-2000);
+    });
+
+    child.on('error', (err) => {
+      wasErrorHandled = true;
+      reject(new Error(`Falha ao recortar chunk de áudio: ${err.message}`));
+    });
+
+    child.on('close', (code, signal) => {
+      if (wasErrorHandled) return;
+
+      if (signal === 'SIGKILL' || signal === 'SIGTERM') {
+        return reject(new Error('Recorte de áudio cancelado intencionalmente.'));
+      }
+
+      if (code !== 0) {
+        return reject(
+          new Error(`FFmpeg falhou no chunk de áudio (código ${code}): ${stderrData || 'Erro desconhecido'}`)
+        );
+      }
+
+      resolve();
+    });
+  });
+}
