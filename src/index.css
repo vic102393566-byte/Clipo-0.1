@@ -309,9 +309,33 @@ html[data-theme-mode="light"] header {
 }
 
 html.light aside[aria-label="Menu de navegação"],
-html[data-theme-mode="light"] aside[aria-label="Menu de navegação"] {
+html[data-theme-mode="light"] aside[aria-label="Menu de navegação"],
+html[data-preset-theme="light-clean"] aside[aria-label="Menu de navegação"] {
   background-color: #FFFFFF !important;
   border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+}
+
+html.light aside[aria-label="Menu de navegação"] nav button[data-active="false"],
+html[data-theme-mode="light"] aside[aria-label="Menu de navegação"] nav button[data-active="false"],
+html[data-preset-theme="light-clean"] aside[aria-label="Menu de navegação"] nav button[data-active="false"] {
+  color: #1E293B !important;
+}
+
+html.light aside[aria-label="Menu de navegação"] nav button[data-active="false"]:hover,
+html[data-theme-mode="light"] aside[aria-label="Menu de navegação"] nav button[data-active="false"]:hover,
+html[data-preset-theme="light-clean"] aside[aria-label="Menu de navegação"] nav button[data-active="false"]:hover {
+  background-color: #F1F5F9 !important;
+  color: #0F172A !important;
+  border-color: #E2E8F0 !important;
+}
+
+html.light aside[aria-label="Menu de navegação"] nav button[data-active="true"],
+html[data-theme-mode="light"] aside[aria-label="Menu de navegação"] nav button[data-active="true"],
+html[data-preset-theme="light-clean"] aside[aria-label="Menu de navegação"] nav button[data-active="true"] {
+  background-color: #EEF2FF !important;
+  color: #3730A3 !important;
+  border-color: #C7D2FE !important;
 }
 
 html.light nav[aria-label="Navegação mobile"],

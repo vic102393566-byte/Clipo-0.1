@@ -297,15 +297,38 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
                   {isEn ? 'Target Channels' : 'Canais de destino'}
                 </span>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {publication.platforms.map((p) => (
-                    <div
-                      key={p}
-                      className="flex items-center gap-1.5 rounded-lg border border-[#27272A] bg-[#0A0A0A] px-2.5 py-1 text-xs text-white capitalize"
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#F97316]" />
-                      <span>{p}</span>
-                    </div>
-                  ))}
+                  {publication.platforms.map((p) => {
+                    const platformResult = publication.platformResults?.find((r) => r.platform === p);
+                    return (
+                      <div
+                        key={p}
+                        title={platformResult?.error || (platformResult?.success ? 'Publicado com sucesso' : undefined)}
+                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs capitalize ${
+                          platformResult
+                            ? platformResult.success
+                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                              : 'border-rose-500/30 bg-rose-500/10 text-rose-300'
+                            : 'border-[#27272A] bg-[#0A0A0A] text-white'
+                        }`}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            platformResult
+                              ? platformResult.success
+                                ? 'bg-emerald-400'
+                                : 'bg-rose-400'
+                              : 'bg-[#F97316]'
+                          }`}
+                        />
+                        <span>{p}</span>
+                        {platformResult && (
+                          <span className="text-[10px] opacity-80">
+                            {platformResult.success ? '✓' : '✕'}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

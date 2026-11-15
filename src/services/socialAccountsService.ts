@@ -29,6 +29,7 @@ export interface AllConnectionsStatusResponse {
   youtube: PlatformConnectionStatus;
   instagram: PlatformConnectionStatus;
   tiktok: PlatformConnectionStatus;
+  linkedin?: PlatformConnectionStatus;
 }
 
 export const socialAccountsService = {

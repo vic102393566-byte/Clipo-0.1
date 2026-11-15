@@ -14,7 +14,8 @@ import {
   X,
   Info,
   Youtube,
-  Instagram
+  Instagram,
+  Linkedin
 } from 'lucide-react';
 import { SocialAccount, SocialPlatform } from '../../types';
 import { socialAccountsService, AuthUrlResponse, AllConnectionsStatusResponse } from '../../services/socialAccountsService';
@@ -44,7 +45,7 @@ interface PlatformConfigGuide {
   descriptionEn: string;
 }
 
-const PLATFORMS_CONFIG_GUIDE: Record<'youtube' | 'instagram' | 'tiktok', PlatformConfigGuide> = {
+const PLATFORMS_CONFIG_GUIDE: Record<'youtube' | 'instagram' | 'tiktok' | 'linkedin', PlatformConfigGuide> = {
   youtube: {
     id: 'youtube',
     name: 'YouTube',
@@ -92,6 +93,21 @@ const PLATFORMS_CONFIG_GUIDE: Record<'youtube' | 'instagram' | 'tiktok', Platfor
     descriptionPt: 'Permite conectar contas do TikTok via Direct Post API v2 oficial para envio programado de vídeos curtos.',
     descriptionEn: 'Connect TikTok accounts via official Direct Post API v2 for automated short-form video publishing.',
   },
+  linkedin: {
+    id: 'linkedin',
+    name: 'LinkedIn',
+    portalName: 'LinkedIn Developers',
+    portalUrl: 'https://www.linkedin.com/developers/apps',
+    callbackPath: '/api/auth/linkedin/callback',
+    envKeys: ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET'],
+    scopes: [
+      'openid',
+      'profile',
+      'w_member_social',
+    ],
+    descriptionPt: 'Permite conectar perfis do LinkedIn para publicação automática de vídeos nativos no feed.',
+    descriptionEn: 'Connect LinkedIn profiles for automated native video publishing to your feed.',
+  },
 };
 
 export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
@@ -113,7 +129,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
 
   // Configuration Guide Modal State
-  const [selectedGuidePlatform, setSelectedGuidePlatform] = useState<'youtube' | 'instagram' | 'tiktok' | null>(null);
+  const [selectedGuidePlatform, setSelectedGuidePlatform] = useState<'youtube' | 'instagram' | 'tiktok' | 'linkedin' | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Connected accounts count
@@ -186,7 +202,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
         const res = await socialAccountsService.getStatus(userId);
         if (isCancelled || !res) return;
 
-        (['youtube', 'instagram', 'tiktok'] as SocialPlatform[]).forEach((plat) => {
+        (['youtube', 'instagram', 'tiktok', 'linkedin'] as SocialPlatform[]).forEach((plat) => {
           const status = res[plat as keyof AllConnectionsStatusResponse];
           if (status) {
             const currentAcc = accounts.find((a) => a.platform === plat);
@@ -221,7 +237,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
   }, [userId]);
 
   // Connect social account via secure popup OAuth flow
-  const handleConnectPlatform = async (platform: 'youtube' | 'instagram' | 'tiktok') => {
+  const handleConnectPlatform = async (platform: 'youtube' | 'instagram' | 'tiktok' | 'linkedin') => {
     setAuthError(null);
     setAuthSuccessMsg(null);
     setActivePlatformAuthenticating(platform);
@@ -270,7 +286,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
   };
 
   // Disconnect social account securely on backend and local state
-  const handleDisconnectPlatform = async (platform: 'youtube' | 'instagram' | 'tiktok') => {
+  const handleDisconnectPlatform = async (platform: 'youtube' | 'instagram' | 'tiktok' | 'linkedin') => {
     const platformLabel = PLATFORMS_CONFIG_GUIDE[platform].name;
     const confirmPrompt = isEn
       ? `Do you want to disconnect your ${platformLabel} account? Clipo will no longer have access to publish on this channel.`
@@ -313,7 +329,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
   };
 
   const corePlatforms: {
-    id: 'youtube' | 'instagram' | 'tiktok';
+    id: 'youtube' | 'instagram' | 'tiktok' | 'linkedin';
     name: string;
     subname: string;
     desc: string;
@@ -349,6 +365,16 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
         : 'API Oficial TikTok v2: publicação com privacidade configurável, áudios e hashtags virais.',
       icon: <Share2 className="h-5 w-5 text-cyan-400" />,
       colorClasses: 'hover:border-cyan-500/40',
+    },
+    {
+      id: 'linkedin',
+      name: 'LinkedIn',
+      subname: isEn ? 'Native Video API' : 'Feed & Vídeos',
+      desc: isEn
+        ? 'Official LinkedIn API: automated native video publishing with commentary for creator profiles.'
+        : 'API Oficial LinkedIn: envio automático de vídeos nativos e legendas diretamente no seu feed.',
+      icon: <Linkedin className="h-5 w-5 text-sky-500" />,
+      colorClasses: 'hover:border-sky-500/40',
     },
   ];
 
@@ -464,8 +490,8 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
         </span>
       </div>
 
-      {/* Main Grid: 1. YouTube, 2. Instagram, 3. TikTok */}
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+      {/* Main Grid: 1. YouTube, 2. Instagram, 3. TikTok, 4. LinkedIn */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
         {corePlatforms.map((p) => {
           const acc = accounts.find((a) => a.platform === p.id);
           const isConnected = acc?.connected ?? false;
@@ -656,7 +682,7 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
 
             {/* Platform Selector Tabs */}
             <div className="flex rounded-xl bg-[#0A0A0A] p-1 border border-[#27272A]">
-              {(['youtube', 'instagram', 'tiktok'] as const).map((platId) => (
+              {(['youtube', 'instagram', 'tiktok', 'linkedin'] as const).map((platId) => (
                 <button
                   key={platId}
                   onClick={() => setSelectedGuidePlatform(platId)}

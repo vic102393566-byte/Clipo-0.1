@@ -27,6 +27,27 @@ export interface SocialAccount {
 
 export type PublicationStatus = 'agendado' | 'processando' | 'publicado' | 'falhou' | 'cancelado';
 
+export interface PlatformPublishResult {
+  platform: SocialPlatform;
+  success: boolean;
+  postId?: string;
+  postUrl?: string;
+  error?: string;
+  publishedAt?: string;
+}
+
+export interface PublishNotificationEvent {
+  id: string;
+  userId: string;
+  type: 'publish_success' | 'publish_failure' | 'push_test';
+  title: string;
+  body: string;
+  publicationId?: string;
+  platforms: SocialPlatform[];
+  platformResults?: PlatformPublishResult[];
+  createdAt: string;
+}
+
 export interface AIMetadata {
   title: string;
   description: string;
@@ -57,6 +78,9 @@ export interface ScheduledPublication {
   callToAction?: string;
   aiMetadata?: AIMetadata;
   errorMessage?: string;
+  platformResults?: PlatformPublishResult[];
+  publishedAt?: string;
+  pushNotified?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

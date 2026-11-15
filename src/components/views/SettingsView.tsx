@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   User,
   Mail,
@@ -22,6 +22,8 @@ import {
   Palette,
   RotateCcw,
   Sparkles,
+  BellRing,
+  Send,
 } from 'lucide-react';
 import {
   UserProfileSettings,
@@ -43,14 +45,25 @@ import {
 import { useI18n } from '../../i18n/I18nContext';
 import { useTheme } from '../../theme/ThemeContext';
 import { Language } from '../../i18n/types';
+import {
+  getPushStatus,
+  subscribeToPushNotifications,
+  unsubscribeFromPushNotifications,
+  syncPushPreferences,
+  sendTestPushNotification,
+  showBrowserNotificationFallback,
+  PushStatusInfo,
+} from '../../services/pushNotificationService';
 
 interface SettingsViewProps {
+  userId?: string;
   onLogout?: () => void;
   onProfileUpdated?: (profile: UserProfileSettings) => void;
   onBack?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
+  userId = 'default_user',
   onLogout,
   onProfileUpdated,
   onBack,
@@ -193,15 +206,112 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     reader.readAsDataURL(file);
   };
 
-  // Toggle notification item
+  // Web Push Notification State
+  const [pushStatus, setPushStatus] = useState<PushStatusInfo>({
+    supported: true,
+    permission: 'default',
+    subscribed: false,
+    backendSubscriptionCount: 0,
+    notifyOnSuccess: true,
+    notifyOnFailure: true,
+  });
+  const [isUpdatingPush, setIsUpdatingPush] = useState(false);
+  const [isSendingTestPush, setIsSendingTestPush] = useState(false);
+  const [pushFeedback, setPushFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getPushStatus(userId).then((status) => {
+      if (!cancelled) {
+        setPushStatus(status);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  const handleEnablePush = async () => {
+    setIsUpdatingPush(true);
+    setPushFeedback(null);
+    const res = await subscribeToPushNotifications(userId, {
+      notifyOnSuccess: profile.notifications.publishSuccess,
+      notifyOnFailure: profile.notifications.publishFailure,
+    });
+    const updatedStatus = await getPushStatus(userId);
+    setPushStatus(updatedStatus);
+    setIsUpdatingPush(false);
+
+    if (res.success) {
+      setPushFeedback({
+        type: 'success',
+        text: isEn
+          ? 'Browser Push notifications enabled! You will be alerted whenever a scheduled post succeeds.'
+          : 'Notificações Push ativadas! Você receberá alertas sempre que um agendamento for publicado com sucesso.',
+      });
+    } else {
+      setPushFeedback({
+        type: 'error',
+        text: res.error || (isEn ? 'Could not activate Push notifications.' : 'Não foi possível ativar as notificações Push.'),
+      });
+    }
+  };
+
+  const handleDisablePush = async () => {
+    setIsUpdatingPush(true);
+    setPushFeedback(null);
+    await unsubscribeFromPushNotifications(userId);
+    const updatedStatus = await getPushStatus(userId);
+    setPushStatus(updatedStatus);
+    setIsUpdatingPush(false);
+    setPushFeedback({
+      type: 'success',
+      text: isEn ? 'Push notifications disabled for this browser.' : 'Notificações Push desativadas neste navegador.',
+    });
+  };
+
+  const handleTestPush = async () => {
+    setIsSendingTestPush(true);
+    setPushFeedback(null);
+    const res = await sendTestPushNotification(userId);
+    if (pushStatus.permission === 'granted' && (res.deliveredCount ?? 0) === 0) {
+      showBrowserNotificationFallback(
+        'Clipo — Notificação Push Ativa',
+        isEn
+          ? 'You will receive alerts whenever a scheduled post succeeds.'
+          : 'Você receberá alertas automáticos assim que um agendamento for publicado.'
+      );
+    }
+    setIsSendingTestPush(false);
+    setPushFeedback({
+      type: res.success ? 'success' : 'error',
+      text: res.message || res.error || (isEn ? 'Test notification dispatched.' : 'Notificação de teste enviada.'),
+    });
+  };
+
+  // Toggle notification item and sync to server Push preferences
   const handleToggleNotification = (key: keyof UserProfileSettings['notifications']) => {
-    setProfile((prev) => ({
-      ...prev,
-      notifications: {
+    setProfile((prev) => {
+      const nextNotifications = {
         ...prev.notifications,
         [key]: !prev.notifications[key],
-      },
-    }));
+      };
+      const updated = {
+        ...prev,
+        notifications: nextNotifications,
+      };
+      saveStoredUserProfile(updated, userId);
+      if (onProfileUpdated) {
+        onProfileUpdated(updated);
+      }
+      if (key === 'publishSuccess' || key === 'publishFailure') {
+        syncPushPreferences(userId, {
+          notifyOnSuccess: nextNotifications.publishSuccess,
+          notifyOnFailure: nextNotifications.publishFailure,
+        });
+      }
+      return updated;
+    });
   };
 
   // Save all profile and security changes
@@ -975,32 +1085,121 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* 4. Notification Preferences */}
-      <div className="rounded-2xl border border-[#27272A] bg-[#151515] p-5 sm:p-6 space-y-4">
-        <div className="border-b border-[#27272A] pb-4">
-          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-            <Bell className="h-4 w-4 text-[#F97316]" />
-            <span>{isEn ? 'Notification Alerts' : 'Preferências de Notificações'}</span>
-          </h3>
-          <p className="text-xs text-[#FDBA74] mt-1">
-            {isEn ? 'Select events for automated system alerts' : 'Escolha os canais e eventos em que deseja receber avisos automáticos'}
-          </p>
+      {/* 4. Notification Preferences & Web Push Controls */}
+      <div className="rounded-2xl border border-[#27272A] bg-[#151515] p-5 sm:p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#27272A] pb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Bell className="h-4 w-4 text-[var(--user-btn-primary,#6366F1)]" />
+              <span>{isEn ? 'Push Notifications & Alerts' : 'Notificações Push e Alertas'}</span>
+            </h3>
+            <p className="text-xs text-[#FDBA74] mt-1">
+              {isEn
+                ? 'Receive instant browser Push notifications when scheduled posts succeed across social APIs'
+                : 'Receba notificações Push no navegador assim que um agendamento for publicado nas redes sociais'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {pushStatus.subscribed && pushStatus.permission === 'granted' ? (
+              <button
+                type="button"
+                onClick={handleDisablePush}
+                disabled={isUpdatingPush}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#27272A] bg-[#0A0A0A] px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white transition cursor-pointer disabled:opacity-50"
+              >
+                {isUpdatingPush ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bell className="h-3.5 w-3.5 text-emerald-400" />}
+                <span>{isEn ? 'Disable Browser Push' : 'Desativar Push'}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleEnablePush}
+                disabled={isUpdatingPush || !pushStatus.supported}
+                className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-white shadow-md transition active:scale-[0.98] cursor-pointer disabled:opacity-50 keep-white"
+                style={{ backgroundColor: 'var(--user-btn-primary, #6366F1)' }}
+              >
+                {isUpdatingPush ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BellRing className="h-3.5 w-3.5" />}
+                <span>{isEn ? 'Enable Push Notifications' : 'Ativar Notificações Push'}</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleTestPush}
+              disabled={isSendingTestPush}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#27272A] bg-[#0A0A0A] px-3.5 py-2 text-xs font-semibold text-white hover:border-[var(--user-btn-primary,#6366F1)]/50 transition cursor-pointer disabled:opacity-50"
+            >
+              {isSendingTestPush ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              <span>{isEn ? 'Send Test Push' : 'Testar Notificação'}</span>
+            </button>
+          </div>
         </div>
+
+        {/* Browser Push Status Summary */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#27272A] bg-[#0A0A0A] px-4 py-3 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-white">
+              {isEn ? 'Browser Push status:' : 'Status do Push no navegador:'}
+            </span>
+            <span className="text-[#FDBA74]">
+              {!pushStatus.supported
+                ? (isEn ? 'Not supported in this browser' : 'Não suportado neste navegador')
+                : pushStatus.permission === 'denied'
+                ? (isEn ? 'Blocked by browser settings' : 'Bloqueado nas permissões do navegador')
+                : pushStatus.subscribed && pushStatus.permission === 'granted'
+                ? (isEn ? 'Active & subscribed via Service Worker' : 'Ativo e inscrito via Service Worker')
+                : (isEn ? 'Ready to activate' : 'Pronto para ativar')}
+            </span>
+          </div>
+          {pushStatus.backendSubscriptionCount > 0 && (
+            <span className="font-mono text-[11px] tabular-nums text-emerald-400">
+              {pushStatus.backendSubscriptionCount} {isEn ? 'active device(s)' : 'dispositivo(s) ativo(s)'}
+            </span>
+          )}
+        </div>
+
+        {pushFeedback && (
+          <div
+            className={`flex items-center justify-between gap-2 rounded-xl border p-3 text-xs ${
+              pushFeedback.type === 'success'
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+            }`}
+          >
+            <span>{pushFeedback.text}</span>
+            <button
+              type="button"
+              onClick={() => setPushFeedback(null)}
+              className="text-xs font-semibold opacity-80 hover:opacity-100 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <div className="divide-y divide-[#27272A] text-xs">
           <div className="flex items-center justify-between py-3">
             <div>
               <p className="font-medium text-white">{isEn ? 'Publication successful' : 'Publicação realizada com sucesso'}</p>
               <p className="text-[#FDBA74] text-[11px]">
-                {isEn ? 'Notify when a scheduled video is published to TikTok or other platforms' : 'Notificar quando um vídeo agendado for disparado no TikTok ou redes conectadas'}
+                {isEn
+                  ? 'Send Push notification when a scheduled post is published to TikTok, YouTube, Instagram, or LinkedIn'
+                  : 'Enviar notificação Push quando um agendamento for publicado no TikTok, YouTube, Instagram ou LinkedIn'}
               </p>
             </div>
             <button
               type="button"
               onClick={() => handleToggleNotification('publishSuccess')}
+              aria-label={isEn ? 'Toggle publication success notification' : 'Alternar notificação de sucesso'}
               className={`h-5 w-9 rounded-full p-0.5 transition cursor-pointer ${
-                profile.notifications.publishSuccess ? 'bg-[#F97316]' : 'bg-[#27272A]'
+                profile.notifications.publishSuccess ? 'bg-[var(--user-btn-primary,#6366F1)]' : 'bg-[#27272A]'
               }`}
+              style={
+                profile.notifications.publishSuccess
+                  ? { backgroundColor: 'var(--user-btn-primary, #6366F1)' }
+                  : undefined
+              }
             >
               <div
                 className={`h-4 w-4 rounded-full bg-white transition-transform ${
@@ -1020,9 +1219,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <button
               type="button"
               onClick={() => handleToggleNotification('publishFailure')}
+              aria-label={isEn ? 'Toggle publication failure notification' : 'Alternar notificação de falha'}
               className={`h-5 w-9 rounded-full p-0.5 transition cursor-pointer ${
-                profile.notifications.publishFailure ? 'bg-[#F97316]' : 'bg-[#27272A]'
+                profile.notifications.publishFailure ? 'bg-[var(--user-btn-primary,#6366F1)]' : 'bg-[#27272A]'
               }`}
+              style={
+                profile.notifications.publishFailure
+                  ? { backgroundColor: 'var(--user-btn-primary, #6366F1)' }
+                  : undefined
+              }
             >
               <div
                 className={`h-4 w-4 rounded-full bg-white transition-transform ${
@@ -1042,9 +1247,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <button
               type="button"
               onClick={() => handleToggleNotification('storageWarning')}
+              aria-label={isEn ? 'Toggle storage warning notification' : 'Alternar alerta de armazenamento'}
               className={`h-5 w-9 rounded-full p-0.5 transition cursor-pointer ${
-                profile.notifications.storageWarning ? 'bg-[#F97316]' : 'bg-[#27272A]'
+                profile.notifications.storageWarning ? 'bg-[var(--user-btn-primary,#6366F1)]' : 'bg-[#27272A]'
               }`}
+              style={
+                profile.notifications.storageWarning
+                  ? { backgroundColor: 'var(--user-btn-primary, #6366F1)' }
+                  : undefined
+              }
             >
               <div
                 className={`h-4 w-4 rounded-full bg-white transition-transform ${

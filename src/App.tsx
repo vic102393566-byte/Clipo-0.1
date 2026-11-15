@@ -20,8 +20,18 @@ import { VideoPlayerModal } from './components/VideoPlayerModal';
 import { SplitVideoModal } from './components/SplitVideoModal';
 import { ScheduleModal } from './components/ScheduleModal';
 import { AIMetadataModal } from './components/AIMetadataModal';
+import { BellRing, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { isValidVideoFile } from './utils/videoUtils';
-import { publishToTikTokDirectPost } from './services/tiktokService';
+import {
+  publishPublicationMultiPlatform,
+  syncSchedulesWithServer,
+  fetchServerSchedules,
+} from './services/publishService';
+import {
+  registerClipoServiceWorker,
+  subscribeToNotificationStream,
+  showBrowserNotificationFallback,
+} from './services/pushNotificationService';
 import {
   UserProfileSettings,
   getStoredUserProfile,
@@ -46,7 +56,8 @@ import {
   VideoItem,
   PlanTier,
   User,
-  AIMetadata
+  AIMetadata,
+  PublishNotificationEvent
 } from './types';
 import {
   initialConnectedAccounts,
@@ -218,6 +229,148 @@ export default function App() {
     if (saved !== null) return saved;
     return initialConnectedAccounts;
   });
+
+  // Push & SSE real-time notification toast state
+  const [activePushToast, setActivePushToast] = useState<PublishNotificationEvent | null>(null);
+  const seenNotificationIdsRef = useRef<Set<string>>(new Set());
+  const lastSyncedSignatureRef = useRef<string>('');
+  const publicationsRef = useRef<ScheduledPublication[]>(publications);
+  publicationsRef.current = publications;
+
+  // Register Service Worker and listen for notification clicks to navigate directly to the publication
+  useEffect(() => {
+    registerClipoServiceWorker();
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'NAVIGATE_PUBLICATION') {
+        setActiveTab(event.data.tab || 'agendamentos');
+        if (event.data.publicationId) {
+          const matched = publicationsRef.current.find((p) => p.id === event.data.publicationId);
+          if (matched) setPreviewPub(matched);
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+  }, []);
+
+  // Auto-dismiss live push toast
+  useEffect(() => {
+    if (!activePushToast) return;
+    const timer = window.setTimeout(() => {
+      setActivePushToast(null);
+    }, 9000);
+    return () => window.clearTimeout(timer);
+  }, [activePushToast]);
+
+  // Connect real-time SSE stream & hydrate background-published schedules from server
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserId) return;
+
+    let isCancelled = false;
+
+    fetchServerSchedules(currentUserId).then((serverPubs) => {
+      if (isCancelled || !serverPubs || serverPubs.length === 0) return;
+      setPublications((prev) => {
+        const serverMap = new Map(serverPubs.map((sp) => [sp.id, sp]));
+        let changed = false;
+        const merged = prev.map((localPub) => {
+          const serverMatch = serverMap.get(localPub.id);
+          if (
+            serverMatch &&
+            (serverMatch.status !== localPub.status ||
+              serverMatch.errorMessage !== localPub.errorMessage ||
+              serverMatch.publishedAt !== localPub.publishedAt)
+          ) {
+            changed = true;
+            return {
+              ...localPub,
+              status: serverMatch.status,
+              errorMessage: serverMatch.errorMessage,
+              platformResults: serverMatch.platformResults ?? localPub.platformResults,
+              publishedAt: serverMatch.publishedAt ?? localPub.publishedAt,
+              pushNotified: serverMatch.pushNotified ?? localPub.pushNotified,
+            };
+          }
+          return localPub;
+        });
+        return changed ? merged : prev;
+      });
+    });
+
+    const unsubscribeStream = subscribeToNotificationStream(
+      currentUserId,
+      (event) => {
+        if (seenNotificationIdsRef.current.has(event.id)) return;
+        seenNotificationIdsRef.current.add(event.id);
+
+        const allowSuccess = userProfile?.notifications?.publishSuccess ?? true;
+        const allowFailure = userProfile?.notifications?.publishFailure ?? true;
+        if (
+          (event.type === 'publish_success' && !allowSuccess) ||
+          (event.type === 'publish_failure' && !allowFailure)
+        ) {
+          return;
+        }
+
+        setActivePushToast(event);
+        showBrowserNotificationFallback(event.title, event.body);
+      },
+      (updatedPub) => {
+        if (!updatedPub?.id) return;
+        setPublications((prev) =>
+          prev.map((p) =>
+            p.id === updatedPub.id
+              ? {
+                  ...p,
+                  status: updatedPub.status || p.status,
+                  errorMessage: updatedPub.errorMessage,
+                  platformResults: updatedPub.platformResults ?? p.platformResults,
+                  publishedAt: updatedPub.publishedAt ?? p.publishedAt,
+                  pushNotified: updatedPub.pushNotified ?? p.pushNotified,
+                }
+              : p
+          )
+        );
+      }
+    );
+
+    return () => {
+      isCancelled = true;
+      unsubscribeStream();
+    };
+  }, [
+    isAuthenticated,
+    currentUserId,
+    userProfile?.notifications?.publishSuccess,
+    userProfile?.notifications?.publishFailure,
+  ]);
+
+  // Sync schedules with backend background dispatcher so due posts trigger social APIs + Push Notifications
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserId) return;
+    const signature = JSON.stringify(
+      publications.map((p) => ({
+        id: p.id,
+        status: p.status,
+        dateISO: p.dateISO,
+        scheduledTime: p.scheduledTime,
+        platforms: p.platforms,
+        videoUrl: p.videoUrl,
+        storagePath: p.storagePath,
+        title: p.title,
+      }))
+    );
+    if (signature === lastSyncedSignatureRef.current) return;
+    lastSyncedSignatureRef.current = signature;
+
+    const timer = window.setTimeout(() => {
+      syncSchedulesWithServer(currentUserId, publications);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [isAuthenticated, currentUserId, publications]);
 
   // Persist social accounts state per user
   useEffect(() => {
@@ -588,38 +741,30 @@ export default function App() {
     const pub = publications.find((p) => p.id === id);
     if (!pub) return;
 
-    // If publishing to TikTok, execute real official Direct Post API
-    if (pub.platforms.includes('tiktok')) {
-      // Mark as processing first
-      setPublications((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: 'processando' } : p))
-      );
+    setPublications((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, status: 'processando', errorMessage: undefined } : p))
+    );
 
-      const result = await publishToTikTokDirectPost(pub);
+    const result = await publishPublicationMultiPlatform(pub, currentUserId || 'default_user', {
+      notifyOnSuccess: userProfile?.notifications?.publishSuccess ?? true,
+      notifyOnFailure: userProfile?.notifications?.publishFailure ?? true,
+    });
 
-      if (result.success) {
-        setPublications((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, status: 'publicado' } : p))
-        );
-      } else {
-        setPublications((prev) =>
-          prev.map((p) =>
-            p.id === id
-              ? {
-                  ...p,
-                  status: 'falhou',
-                  errorMessage: result.error || 'Falha no envio via API Oficial do TikTok',
-                }
-              : p
-          )
-        );
-      }
-    } else {
-      // Other platforms
-      setPublications((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: 'publicado' } : p))
-      );
-    }
+    setPublications((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              status: result.status,
+              platformResults: result.platformResults,
+              publishedAt: result.publishedAt || p.publishedAt,
+              errorMessage: result.success
+                ? undefined
+                : result.error || 'Falha ao publicar nas redes sociais selecionadas.',
+            }
+          : p
+      )
+    );
   };
 
   const handleToggleConnect = (id: string) => {
@@ -813,6 +958,97 @@ export default function App() {
         </div>
       )}
 
+      {/* Real-time Push / Social Publish Notification Banner */}
+      {activePushToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed bottom-20 md:bottom-6 right-4 z-50 w-[calc(100%-2rem)] max-w-sm rounded-2xl border p-4 shadow-2xl backdrop-blur-md flex items-start gap-3 transition-all ${
+            resolvedTheme === 'light'
+              ? activePushToast.type === 'publish_failure'
+                ? 'border-rose-200 bg-white text-slate-900'
+                : 'border-emerald-200 bg-white text-slate-900'
+              : activePushToast.type === 'publish_failure'
+              ? 'border-rose-500/30 bg-[#111827]/95 text-slate-100'
+              : 'border-emerald-500/30 bg-[#111827]/95 text-slate-100'
+          }`}
+        >
+          <div
+            className={`rounded-xl p-2 shrink-0 ${
+              activePushToast.type === 'publish_success'
+                ? resolvedTheme === 'light'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-emerald-500/15 text-emerald-400'
+                : activePushToast.type === 'publish_failure'
+                ? resolvedTheme === 'light'
+                  ? 'bg-rose-100 text-rose-700'
+                  : 'bg-rose-500/15 text-rose-400'
+                : resolvedTheme === 'light'
+                ? 'bg-indigo-100 text-indigo-700'
+                : 'bg-indigo-500/15 text-indigo-400'
+            }`}
+          >
+            {activePushToast.type === 'publish_success' ? (
+              <CheckCircle2 className="h-5 w-5" />
+            ) : activePushToast.type === 'publish_failure' ? (
+              <AlertCircle className="h-5 w-5" />
+            ) : (
+              <BellRing className="h-5 w-5" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold leading-snug">{activePushToast.title}</p>
+            <p
+              className={`mt-1 text-[11px] leading-relaxed ${
+                resolvedTheme === 'light' ? 'text-slate-600' : 'text-slate-300'
+              }`}
+            >
+              {activePushToast.body}
+            </p>
+            <div className="mt-2.5 flex items-center gap-2">
+              {activePushToast.publicationId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const matched = publications.find((p) => p.id === activePushToast.publicationId);
+                    setActiveTab('agendamentos');
+                    if (matched) setPreviewPub(matched);
+                    setActivePushToast(null);
+                  }}
+                  style={{ backgroundColor: 'var(--user-btn-primary, #6366F1)' }}
+                  className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-90 transition cursor-pointer"
+                >
+                  Ver agendamento
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setActivePushToast(null)}
+                className={`text-[11px] font-medium px-2 py-1 rounded-lg transition cursor-pointer ${
+                  resolvedTheme === 'light'
+                    ? 'text-slate-600 hover:bg-slate-100'
+                    : 'text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActivePushToast(null)}
+            aria-label="Fechar notificação"
+            className={`p-1 rounded-lg transition cursor-pointer ${
+              resolvedTheme === 'light'
+                ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Sidebar Navigation - Hidden drawer by default */}
       <Sidebar
         activeTab={activeTab}
@@ -928,6 +1164,7 @@ export default function App() {
 
             {activeTab === 'configuracoes' && (
               <SettingsView
+                userId={currentUserId}
                 onProfileUpdated={(updated) => {
                   setUserProfile(updated);
                   saveStoredUserProfile(updated, currentUserId);

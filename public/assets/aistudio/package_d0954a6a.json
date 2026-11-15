@@ -1,0 +1,13 @@
+{
+  "name": "clipo-platform",
+  "private": true,
+  "description": "Raiz do monorepo. A Vercel publica o front (apps/web) a partir daqui; a API e o worker vão para o Render.",
+  "workspaces": ["apps/web"],
+  "scripts": {
+    "build": "npm run build --workspace apps/web",
+    "dev": "npm run dev --workspace apps/web"
+  },
+  "dependencies": {
+    "next": "16.4.3"
+  }
+}

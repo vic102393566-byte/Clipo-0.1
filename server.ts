@@ -6,6 +6,11 @@ import { exec, ChildProcess } from 'child_process';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
+import { createRequire } from 'module';
+import type * as WebPushModule from 'web-push';
+
+const require = createRequire(import.meta.url);
+const webpush = require('web-push') as typeof WebPushModule;
 
 dotenv.config();
 
@@ -75,7 +80,7 @@ interface SocialAccountData {
 
 interface UserPlatformConnection {
   userId: string;
-  platform: 'youtube' | 'instagram' | 'tiktok';
+  platform: 'youtube' | 'instagram' | 'tiktok' | 'linkedin';
   connected: boolean;
   connectedAt?: string;
   account?: SocialAccountData;
@@ -292,10 +297,12 @@ app.get('/api/auth/status', (req: Request, res: Response) => {
   const ytConn = userSocialConnections.get(`${userId}:youtube`);
   const igConn = userSocialConnections.get(`${userId}:instagram`);
   const ttConn = userSocialConnections.get(`${userId}:tiktok`);
+  const liConn = userSocialConnections.get(`${userId}:linkedin`);
 
   const isYtConfigured = Boolean(process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID);
   const isIgConfigured = Boolean(process.env.INSTAGRAM_CLIENT_ID || process.env.META_APP_ID);
   const isTtConfigured = Boolean(process.env.TIKTOK_CLIENT_KEY || process.env.VITE_TIKTOK_CLIENT_KEY);
+  const isLiConfigured = Boolean(process.env.LINKEDIN_CLIENT_ID);
 
   return res.json({
     youtube: {
@@ -315,6 +322,12 @@ app.get('/api/auth/status', (req: Request, res: Response) => {
       configured: isTtConfigured,
       connectedAt: ttConn?.connectedAt,
       account: ttConn?.connected ? ttConn.account : null,
+    },
+    linkedin: {
+      connected: liConn?.connected ?? false,
+      configured: isLiConfigured,
+      connectedAt: liConn?.connectedAt,
+      account: liConn?.connected ? liConn.account : null,
     },
   });
 });
@@ -748,81 +761,1436 @@ app.post('/api/auth/tiktok/disconnect', (req: Request, res: Response) => {
   return res.json({ success: true, message: 'Conta TikTok desconectada com sucesso.' });
 });
 
-// ==========================================
-// 2. TIKTOK VIDEO PUBLISHING SERVICE (Official v2 API)
-// ==========================================
-// Prepares and executes official direct post publishing using TikTok Direct Post API
-// Flow:
-// 1. POST https://open.tiktokapis.com/v2/post/publish/video/init/
-// 2. Upload video binary chunks to TikTok upload_url
-// 3. Status check: POST https://open.tiktokapis.com/v2/post/publish/status/fetch/
-app.post('/api/tiktok/publish', async (req: Request, res: Response) => {
-  const { title, description, videoUrl, scheduledTime, userId = 'default_user' } = req.body;
+// ------------------------------------------
+// 1.4 LINKEDIN (Official OAuth 2.0 API)
+// ------------------------------------------
 
-  const connection = userSocialConnections.get(`${userId}:tiktok`);
-  const accessToken = connection?.tokens?.accessToken;
+app.get('/api/auth/linkedin/url', (req: Request, res: Response) => {
+  const userId = String(req.query.userId || 'default_user');
+  const clientId = process.env.LINKEDIN_CLIENT_ID;
+  const baseAppUrl = getBaseAppUrl();
+  const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${baseAppUrl}/api/auth/linkedin/callback`;
+  const scope = 'openid profile w_member_social';
+  const state = encodeOAuthState(userId, 'linkedin');
 
-  if (!connection || !accessToken) {
-    return res.status(401).json({
-      success: false,
-      error: 'Nenhuma conta TikTok conectada via OAuth ou token expirado para este usuário.',
-      requiresAuth: true,
+  if (!clientId) {
+    return res.status(200).json({
+      configured: false,
+      message: 'LINKEDIN_CLIENT_ID não configurada no ambiente.',
+      missingKeys: ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET'],
+      redirectUri,
+      scopes: scope,
+      setupUrl: 'https://www.linkedin.com/developers/apps',
     });
   }
 
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    scope,
+    state,
+  });
+
+  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
+  return res.json({
+    configured: true,
+    url: authUrl,
+    redirectUri,
+    state,
+  });
+});
+
+app.get(['/api/auth/linkedin/callback', '/api/auth/linkedin/callback/'], async (req: Request, res: Response) => {
+  const { code, state, error, error_description } = req.query;
+  const { userId } = decodeOAuthState(state);
+
+  if (error) {
+    return res.send(renderOAuthErrorPage('LinkedIn', 'linkedin', String(error_description || error)));
+  }
+
+  const clientId = process.env.LINKEDIN_CLIENT_ID;
+  const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
+  const baseAppUrl = getBaseAppUrl();
+  const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${baseAppUrl}/api/auth/linkedin/callback`;
+
   try {
-    // Step 1: Initialize Direct Post on TikTok Official v2 API
-    const initResponse = await fetch(
-      'https://open.tiktokapis.com/v2/post/publish/video/init/',
+    if (code && clientId && clientSecret) {
+      const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: String(code),
+          redirect_uri: redirectUri,
+          client_id: clientId,
+          client_secret: clientSecret,
+        }),
+      });
+
+      const tokenData = await tokenRes.json();
+      if (tokenData.access_token) {
+        let memberId = 'li_member';
+        let memberName = 'Criador LinkedIn';
+        let memberHandle = 'linkedin.com/in/creator';
+        let avatarUrl = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&auto=format&fit=crop&q=80';
+
+        try {
+          const userInfoRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          });
+          const userInfo = await userInfoRes.json();
+          if (userInfo.sub) {
+            memberId = userInfo.sub;
+            memberName = userInfo.name || memberName;
+            memberHandle = userInfo.email || `@${memberName.toLowerCase().replace(/\s+/g, '-')}`;
+            avatarUrl = userInfo.picture || avatarUrl;
+          }
+        } catch (profileErr) {
+          console.warn('Erro ao obter perfil LinkedIn:', profileErr);
+        }
+
+        const accountData: SocialAccountData = {
+          id: memberId,
+          name: memberName,
+          handle: memberHandle,
+          avatarUrl,
+          followerCount: 0,
+          followersFormatted: '0',
+          scope: tokenData.scope,
+        };
+
+        userSocialConnections.set(`${userId}:linkedin`, {
+          userId,
+          platform: 'linkedin',
+          connected: true,
+          connectedAt: new Date().toISOString(),
+          account: accountData,
+          tokens: {
+            accessToken: tokenData.access_token,
+            refreshToken: tokenData.refresh_token,
+            expiresIn: tokenData.expires_in,
+            expiresAt: Date.now() + (tokenData.expires_in || 5184000) * 1000,
+            scope: tokenData.scope,
+          },
+        });
+        saveSocialConnectionsToDisk();
+
+        return res.send(renderOAuthSuccessPage('LinkedIn', 'linkedin', accountData));
+      }
+    }
+  } catch (err: any) {
+    console.error('Erro na troca de código LinkedIn:', err);
+    return res.send(renderOAuthErrorPage('LinkedIn', 'linkedin', err.message || 'Erro na troca de código OAuth.'));
+  }
+
+  return res.send(renderOAuthErrorPage('LinkedIn', 'linkedin', 'Código ou credenciais inválidas.'));
+});
+
+app.post('/api/auth/linkedin/disconnect', (req: Request, res: Response) => {
+  const userId = String(req.body.userId || 'default_user');
+  userSocialConnections.delete(`${userId}:linkedin`);
+  saveSocialConnectionsToDisk();
+  return res.json({ success: true, message: 'Conta do LinkedIn desconectada com sucesso.' });
+});
+
+// ==========================================
+// 2. WEB PUSH NOTIFICATIONS & MULTI-PLATFORM PUBLISHING
+// ==========================================
+
+interface StoredPushSubscription {
+  endpoint: string;
+  expirationTime?: number | null;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+  userId: string;
+  notifyOnSuccess: boolean;
+  notifyOnFailure: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PublishNotificationRecord {
+  id: string;
+  userId: string;
+  type: 'publish_success' | 'publish_failure' | 'push_test';
+  title: string;
+  body: string;
+  publicationId?: string;
+  platforms: Array<'tiktok' | 'instagram' | 'youtube' | 'linkedin'>;
+  platformResults?: Array<{
+    platform: 'tiktok' | 'instagram' | 'youtube' | 'linkedin';
+    success: boolean;
+    postId?: string;
+    postUrl?: string;
+    error?: string;
+    publishedAt?: string;
+  }>;
+  createdAt: string;
+}
+
+interface ServerScheduledPublication {
+  id: string;
+  userId: string;
+  videoId?: string;
+  videoUrl?: string;
+  storagePath?: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  duration: string;
+  scheduledTime: string;
+  scheduledDateLabel: string;
+  dateISO?: string;
+  platforms: Array<'tiktok' | 'instagram' | 'youtube' | 'linkedin'>;
+  status: 'agendado' | 'processando' | 'publicado' | 'falhou' | 'cancelado';
+  aspectRatio?: '9:16' | '16:9' | '1:1';
+  fileSize?: string;
+  hashtags?: string[];
+  callToAction?: string;
+  errorMessage?: string;
+  platformResults?: PublishNotificationRecord['platformResults'];
+  publishedAt?: string;
+  pushNotified?: boolean;
+  updatedAt?: string;
+}
+
+const VAPID_KEYS_FILE = path.resolve(TOKENS_STORE_DIR, 'vapid_keys.json');
+const PUSH_SUBS_FILE = path.resolve(TOKENS_STORE_DIR, 'push_subscriptions.json');
+const NOTIFICATIONS_LOG_FILE = path.resolve(TOKENS_STORE_DIR, 'notifications_log.json');
+const SCHEDULED_JOBS_FILE = path.resolve(TOKENS_STORE_DIR, 'scheduled_jobs.json');
+
+function ensureStorageDir() {
+  if (!fs.existsSync(TOKENS_STORE_DIR)) {
+    fs.mkdirSync(TOKENS_STORE_DIR, { recursive: true });
+  }
+}
+
+function getOrCreateVapidKeys(): { publicKey: string; privateKey: string; subject: string } {
+  const subject = process.env.VAPID_SUBJECT || 'mailto:notificacoes@clipo.app';
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    return {
+      publicKey: process.env.VAPID_PUBLIC_KEY,
+      privateKey: process.env.VAPID_PRIVATE_KEY,
+      subject,
+    };
+  }
+
+  ensureStorageDir();
+  try {
+    if (fs.existsSync(VAPID_KEYS_FILE)) {
+      const saved = JSON.parse(fs.readFileSync(VAPID_KEYS_FILE, 'utf-8'));
+      if (saved?.publicKey && saved?.privateKey) {
+        return { publicKey: saved.publicKey, privateKey: saved.privateKey, subject };
+      }
+    }
+  } catch (err) {
+    console.warn('[Push] Erro ao ler VAPID keys do disco:', err);
+  }
+
+  const generated = webpush.generateVAPIDKeys();
+  try {
+    fs.writeFileSync(VAPID_KEYS_FILE, JSON.stringify(generated, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[Push] Erro ao persistir VAPID keys:', err);
+  }
+  return { publicKey: generated.publicKey, privateKey: generated.privateKey, subject };
+}
+
+const vapidConfig = getOrCreateVapidKeys();
+webpush.setVapidDetails(vapidConfig.subject, vapidConfig.publicKey, vapidConfig.privateKey);
+
+const userPushSubscriptions = new Map<string, StoredPushSubscription[]>();
+const userNotificationsLog = new Map<string, PublishNotificationRecord[]>();
+const userScheduledJobs = new Map<string, ServerScheduledPublication[]>();
+const sseClientsByUser = new Map<string, Set<Response>>();
+
+function loadPushSubscriptionsFromDisk() {
+  try {
+    if (fs.existsSync(PUSH_SUBS_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(PUSH_SUBS_FILE, 'utf-8'));
+      if (parsed && typeof parsed === 'object') {
+        for (const [uid, subs] of Object.entries(parsed)) {
+          if (Array.isArray(subs)) {
+            userPushSubscriptions.set(uid, subs as StoredPushSubscription[]);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Push] Erro ao carregar assinaturas:', err);
+  }
+}
+
+function savePushSubscriptionsToDisk() {
+  try {
+    ensureStorageDir();
+    const obj: Record<string, StoredPushSubscription[]> = {};
+    for (const [uid, subs] of userPushSubscriptions.entries()) {
+      obj[uid] = subs;
+    }
+    fs.writeFileSync(PUSH_SUBS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[Push] Erro ao salvar assinaturas:', err);
+  }
+}
+
+function loadNotificationsLogFromDisk() {
+  try {
+    if (fs.existsSync(NOTIFICATIONS_LOG_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(NOTIFICATIONS_LOG_FILE, 'utf-8'));
+      if (parsed && typeof parsed === 'object') {
+        for (const [uid, list] of Object.entries(parsed)) {
+          if (Array.isArray(list)) {
+            userNotificationsLog.set(uid, list as PublishNotificationRecord[]);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Push] Erro ao carregar histórico de notificações:', err);
+  }
+}
+
+function saveNotificationsLogToDisk() {
+  try {
+    ensureStorageDir();
+    const obj: Record<string, PublishNotificationRecord[]> = {};
+    for (const [uid, list] of userNotificationsLog.entries()) {
+      obj[uid] = list;
+    }
+    fs.writeFileSync(NOTIFICATIONS_LOG_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[Push] Erro ao salvar histórico de notificações:', err);
+  }
+}
+
+function loadScheduledJobsFromDisk() {
+  try {
+    if (fs.existsSync(SCHEDULED_JOBS_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(SCHEDULED_JOBS_FILE, 'utf-8'));
+      if (parsed && typeof parsed === 'object') {
+        for (const [uid, jobs] of Object.entries(parsed)) {
+          if (Array.isArray(jobs)) {
+            userScheduledJobs.set(uid, jobs as ServerScheduledPublication[]);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Scheduler] Erro ao carregar agendamentos:', err);
+  }
+}
+
+function saveScheduledJobsToDisk() {
+  try {
+    ensureStorageDir();
+    const obj: Record<string, ServerScheduledPublication[]> = {};
+    for (const [uid, jobs] of userScheduledJobs.entries()) {
+      obj[uid] = jobs;
+    }
+    fs.writeFileSync(SCHEDULED_JOBS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[Scheduler] Erro ao salvar agendamentos:', err);
+  }
+}
+
+loadPushSubscriptionsFromDisk();
+loadNotificationsLogFromDisk();
+loadScheduledJobsFromDisk();
+
+function emitSseEvent(userId: string, eventName: string, data: any) {
+  const clients = sseClientsByUser.get(userId);
+  if (!clients || clients.size === 0) return;
+  const serialized = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const res of clients) {
+    try {
+      res.write(serialized);
+    } catch {
+      clients.delete(res);
+    }
+  }
+}
+
+async function sendPublishNotification(
+  userId: string,
+  payload: Omit<PublishNotificationRecord, 'id' | 'userId' | 'createdAt'>
+): Promise<{ deliveredCount: number; event: PublishNotificationRecord }> {
+  const eventRecord: PublishNotificationRecord = {
+    id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    userId,
+    createdAt: new Date().toISOString(),
+    ...payload,
+  };
+
+  const existingLog = userNotificationsLog.get(userId) || [];
+  userNotificationsLog.set(userId, [eventRecord, ...existingLog].slice(0, 50));
+  saveNotificationsLogToDisk();
+
+  // Real-time SSE notification to open browser tabs
+  emitSseEvent(userId, 'publish_notification', eventRecord);
+
+  // Web Push notifications via VAPID to registered Service Workers
+  const subs = userPushSubscriptions.get(userId) || [];
+  let deliveredCount = 0;
+  const validSubs: StoredPushSubscription[] = [];
+
+  for (const sub of subs) {
+    const shouldSend =
+      payload.type === 'push_test' ||
+      (payload.type === 'publish_success' && sub.notifyOnSuccess !== false) ||
+      (payload.type === 'publish_failure' && sub.notifyOnFailure !== false);
+
+    if (!shouldSend) {
+      validSubs.push(sub);
+      continue;
+    }
+
+    try {
+      await webpush.sendNotification(
+        {
+          endpoint: sub.endpoint,
+          expirationTime: sub.expirationTime ?? null,
+          keys: sub.keys,
+        },
+        JSON.stringify({
+          title: payload.title,
+          body: payload.body,
+          publicationId: payload.publicationId,
+          platforms: payload.platforms,
+          url: payload.publicationId
+            ? `/?tab=agendamentos&pub=${encodeURIComponent(payload.publicationId)}`
+            : '/?tab=agendamentos',
+          tag: `clipo-${payload.type}-${payload.publicationId || Date.now()}`,
+        })
+      );
+      deliveredCount++;
+      validSubs.push(sub);
+    } catch (err: any) {
+      const statusCode = err?.statusCode;
+      if (statusCode === 404 || statusCode === 410) {
+        console.log(`[Push] Removendo assinatura expirada (${statusCode}) para ${userId}`);
+      } else {
+        console.warn(`[Push] Falha ao entregar Web Push:`, err?.message || err);
+        validSubs.push(sub);
+      }
+    }
+  }
+
+  if (validSubs.length !== subs.length) {
+    userPushSubscriptions.set(userId, validSubs);
+    savePushSubscriptionsToDisk();
+  }
+
+  return { deliveredCount, event: eventRecord };
+}
+
+function resolveLocalMediaFile(videoUrl?: string, storagePath?: string): {
+  filePath: string;
+  sizeBytes: number;
+} | null {
+  const candidates = [storagePath, videoUrl].filter(Boolean) as string[];
+  for (const raw of candidates) {
+    try {
+      const mediaIdx = raw.indexOf('/media/');
+      if (mediaIdx !== -1) {
+        const sub = raw.substring(mediaIdx + 1); // "media/..."
+        const resolved = path.resolve(__dirname, 'public', sub);
+        if (resolved.startsWith(mediaDir) && fs.existsSync(resolved)) {
+          const stat = fs.statSync(resolved);
+          if (stat.isFile() && stat.size > 0) {
+            return { filePath: resolved, sizeBytes: stat.size };
+          }
+        }
+      }
+    } catch {
+      // ignore invalid path
+    }
+  }
+  return null;
+}
+
+function formatPlatformDisplayName(platform: string): string {
+  switch (platform) {
+    case 'tiktok':
+      return 'TikTok';
+    case 'instagram':
+      return 'Instagram';
+    case 'youtube':
+      return 'YouTube';
+    case 'linkedin':
+      return 'LinkedIn';
+    default:
+      return platform;
+  }
+}
+
+async function ensureFreshTikTokToken(userId: string, conn: UserPlatformConnection): Promise<string> {
+  const tokens = conn.tokens;
+  if (!tokens?.accessToken) {
+    throw new Error('Token de acesso TikTok ausente.');
+  }
+  if (tokens.expiresAt && Date.now() < tokens.expiresAt - 60_000) {
+    return tokens.accessToken;
+  }
+  const clientKey = process.env.TIKTOK_CLIENT_KEY || process.env.VITE_TIKTOK_CLIENT_KEY;
+  const clientSecret = process.env.TIKTOK_CLIENT_SECRET || process.env.VITE_TIKTOK_CLIENT_SECRET;
+  if (tokens.refreshToken && clientKey && clientSecret) {
+    try {
+      const res = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_key: clientKey,
+          client_secret: clientSecret,
+          grant_type: 'refresh_token',
+          refresh_token: tokens.refreshToken,
+        }),
+      });
+      const data = await res.json();
+      if (data?.data?.access_token) {
+        conn.tokens = {
+          ...tokens,
+          accessToken: data.data.access_token,
+          refreshToken: data.data.refresh_token || tokens.refreshToken,
+          expiresIn: data.data.expires_in,
+          expiresAt: Date.now() + (data.data.expires_in || 3600) * 1000,
+        };
+        userSocialConnections.set(`${userId}:tiktok`, conn);
+        saveSocialConnectionsToDisk();
+        return conn.tokens.accessToken;
+      }
+    } catch (err) {
+      console.warn('[TikTok] Falha ao renovar token:', err);
+    }
+  }
+  return tokens.accessToken;
+}
+
+async function ensureFreshYouTubeToken(userId: string, conn: UserPlatformConnection): Promise<string> {
+  const tokens = conn.tokens;
+  if (!tokens?.accessToken) {
+    throw new Error('Token de acesso YouTube ausente.');
+  }
+  if (tokens.expiresAt && Date.now() < tokens.expiresAt - 60_000) {
+    return tokens.accessToken;
+  }
+  const clientId = process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
+  if (tokens.refreshToken && clientId && clientSecret) {
+    try {
+      const res = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: tokens.refreshToken,
+          grant_type: 'refresh_token',
+        }),
+      });
+      const data = await res.json();
+      if (data?.access_token) {
+        conn.tokens = {
+          ...tokens,
+          accessToken: data.access_token,
+          expiresIn: data.expires_in,
+          expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
+        };
+        userSocialConnections.set(`${userId}:youtube`, conn);
+        saveSocialConnectionsToDisk();
+        return conn.tokens.accessToken;
+      }
+    } catch (err) {
+      console.warn('[YouTube] Falha ao renovar token:', err);
+    }
+  }
+  return tokens.accessToken;
+}
+
+async function loadVideoBinary(videoUrl?: string, storagePath?: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const local = resolveLocalMediaFile(videoUrl, storagePath);
+  if (local) {
+    const ext = path.extname(local.filePath).toLowerCase();
+    const mimeType = ext === '.mov' ? 'video/quicktime' : ext === '.webm' ? 'video/webm' : 'video/mp4';
+    return { buffer: fs.readFileSync(local.filePath), mimeType };
+  }
+  if (videoUrl && (videoUrl.startsWith('http://') || videoUrl.startsWith('https://'))) {
+    try {
+      const resp = await fetch(videoUrl);
+      if (resp.ok) {
+        const arrBuf = await resp.arrayBuffer();
+        const mimeType = resp.headers.get('content-type') || 'video/mp4';
+        return { buffer: Buffer.from(arrBuf), mimeType };
+      }
+    } catch (err) {
+      console.warn('[Media] Falha ao baixar vídeo remoto:', err);
+    }
+  }
+  return null;
+}
+
+async function publishVideoToTikTok(
+  userId: string,
+  payload: { title: string; description: string; videoUrl?: string; storagePath?: string }
+): Promise<{ platform: 'tiktok'; success: boolean; postId?: string; error?: string; publishedAt?: string }> {
+  const conn = userSocialConnections.get(`${userId}:tiktok`);
+  if (!conn || !conn.connected || !conn.tokens?.accessToken) {
+    return {
+      platform: 'tiktok',
+      success: false,
+      error: 'Conta TikTok não conectada via OAuth. Conecte em "Contas conectadas".',
+    };
+  }
+
+  try {
+    const accessToken = await ensureFreshTikTokToken(userId, conn);
+    const localMedia = resolveLocalMediaFile(payload.videoUrl, payload.storagePath);
+    const videoBytes = localMedia ? fs.readFileSync(localMedia.filePath) : null;
+    const videoSize = videoBytes ? videoBytes.length : 1024 * 1024 * 15;
+
+    const captionText = payload.description
+      ? `${payload.title}\n\n${payload.description}`.slice(0, 2200)
+      : payload.title.slice(0, 2200);
+
+    const initResponse = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: JSON.stringify({
+        post_info: {
+          title: captionText,
+          privacy_level: 'PUBLIC_TO_EVERYONE',
+          disable_duet: false,
+          disable_stitch: false,
+          disable_comment: false,
+          video_cover_timestamp_ms: 1000,
+        },
+        source_info: {
+          source: 'FILE_UPLOAD',
+          video_size: videoSize,
+          chunk_size: videoSize,
+          total_chunk_count: 1,
+        },
+      }),
+    });
+
+    const initData = await initResponse.json();
+    if (initData.error && initData.error.code !== 'ok') {
+      return {
+        platform: 'tiktok',
+        success: false,
+        error: initData.error.message || 'Erro ao inicializar postagem na API Oficial do TikTok.',
+      };
+    }
+
+    const publishId = initData.data?.publish_id;
+    const uploadUrl = initData.data?.upload_url;
+
+    if (uploadUrl && videoBytes) {
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'video/mp4',
+          'Content-Range': `bytes 0-${videoSize - 1}/${videoSize}`,
+          'Content-Length': String(videoSize),
+        },
+        body: new Uint8Array(videoBytes),
+      });
+
+      if (!uploadRes.ok) {
+        return {
+          platform: 'tiktok',
+          success: false,
+          error: `Falha no envio do arquivo de vídeo para o TikTok (HTTP ${uploadRes.status}).`,
+        };
+      }
+    }
+
+    if (publishId) {
+      await fetch('https://open.tiktokapis.com/v2/post/publish/status/fetch/', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: JSON.stringify({ publish_id: publishId }),
+      }).catch(() => {});
+    }
+
+    return {
+      platform: 'tiktok',
+      success: true,
+      postId: publishId,
+      publishedAt: new Date().toISOString(),
+    };
+  } catch (err: any) {
+    return {
+      platform: 'tiktok',
+      success: false,
+      error: err?.message || 'Erro de comunicação com a API Oficial do TikTok.',
+    };
+  }
+}
+
+async function publishVideoToYouTube(
+  userId: string,
+  payload: { title: string; description: string; videoUrl?: string; storagePath?: string; hashtags?: string[] }
+): Promise<{ platform: 'youtube'; success: boolean; postId?: string; postUrl?: string; error?: string; publishedAt?: string }> {
+  const conn = userSocialConnections.get(`${userId}:youtube`);
+  if (!conn || !conn.connected || !conn.tokens?.accessToken) {
+    return {
+      platform: 'youtube',
+      success: false,
+      error: 'Canal YouTube não conectado via OAuth. Conecte em "Contas conectadas".',
+    };
+  }
+
+  try {
+    const accessToken = await ensureFreshYouTubeToken(userId, conn);
+    const media = await loadVideoBinary(payload.videoUrl, payload.storagePath);
+    if (!media) {
+      return {
+        platform: 'youtube',
+        success: false,
+        error: 'Arquivo de vídeo não localizado para envio à YouTube Data API v3.',
+      };
+    }
+
+    const ytTitle = payload.title.includes('#Shorts')
+      ? payload.title.slice(0, 100)
+      : `${payload.title} #Shorts`.slice(0, 100);
+    const tags = Array.isArray(payload.hashtags)
+      ? payload.hashtags.map((h) => h.replace(/^#/, '')).slice(0, 15)
+      : ['clipo', 'shorts'];
+
+    const initRes = await fetch(
+      'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
       {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Length': String(media.buffer.length),
+          'X-Upload-Content-Type': media.mimeType,
         },
         body: JSON.stringify({
-          post_info: {
-            title: description ? `${title}\n\n${description}` : title,
-            privacy_level: 'PUBLIC_TO_EVERYONE',
-            disable_duet: false,
-            disable_stitch: false,
-            disable_comment: false,
-            video_cover_timestamp_ms: 1000,
+          snippet: {
+            title: ytTitle,
+            description: payload.description || payload.title,
+            tags,
+            categoryId: '22',
           },
-          source_info: {
-            source: 'FILE_UPLOAD',
-            video_size: 1024 * 1024 * 15, // standard chunk or target size
-            chunk_size: 1024 * 1024 * 15,
-            total_chunk_count: 1,
+          status: {
+            privacyStatus: 'public',
+            selfDeclaredMadeForKids: false,
           },
         }),
       }
     );
 
-    const initData = await initResponse.json();
-
-    if (initData.error && initData.error.code !== 'ok') {
-      return res.status(400).json({
+    if (!initRes.ok) {
+      const errJson = await initRes.json().catch(() => ({}));
+      return {
+        platform: 'youtube',
         success: false,
-        error: initData.error.message || 'Erro ao inicializar postagem no TikTok',
-        details: initData.error,
-      });
+        error: errJson?.error?.message || `YouTube API retornou erro HTTP ${initRes.status}.`,
+      };
     }
 
-    return res.json({
-      success: true,
-      publishId: initData.data?.publish_id,
-      uploadUrl: initData.data?.upload_url,
-      message: 'Publicação iniciada com sucesso na API Oficial do TikTok.',
+    const uploadLocation = initRes.headers.get('location');
+    if (!uploadLocation) {
+      return {
+        platform: 'youtube',
+        success: false,
+        error: 'YouTube API não retornou URL de upload resumível.',
+      };
+    }
+
+    const uploadRes = await fetch(uploadLocation, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': media.mimeType,
+        'Content-Length': String(media.buffer.length),
+      },
+      body: new Uint8Array(media.buffer),
     });
-  } catch (error: any) {
-    console.error('TikTok publish error:', error);
-    return res.status(500).json({
+
+    const uploadJson = await uploadRes.json().catch(() => ({}));
+    if (!uploadRes.ok || !uploadJson.id) {
+      return {
+        platform: 'youtube',
+        success: false,
+        error: uploadJson?.error?.message || `Falha ao enviar vídeo ao YouTube (HTTP ${uploadRes.status}).`,
+      };
+    }
+
+    return {
+      platform: 'youtube',
+      success: true,
+      postId: uploadJson.id,
+      postUrl: `https://youtube.com/shorts/${uploadJson.id}`,
+      publishedAt: new Date().toISOString(),
+    };
+  } catch (err: any) {
+    return {
+      platform: 'youtube',
       success: false,
-      error: error.message || 'Erro de comunicação com a API Oficial do TikTok',
+      error: err?.message || 'Erro de comunicação com a API do YouTube.',
+    };
+  }
+}
+
+async function publishVideoToInstagram(
+  userId: string,
+  payload: { title: string; description: string; videoUrl?: string; storagePath?: string }
+): Promise<{ platform: 'instagram'; success: boolean; postId?: string; error?: string; publishedAt?: string }> {
+  const conn = userSocialConnections.get(`${userId}:instagram`);
+  if (!conn || !conn.connected || !conn.tokens?.accessToken) {
+    return {
+      platform: 'instagram',
+      success: false,
+      error: 'Conta Instagram Business/Creator não conectada via OAuth.',
+    };
+  }
+
+  try {
+    const accessToken = conn.tokens.accessToken;
+    const igUserId = conn.account?.id;
+    if (!igUserId || igUserId === 'ig_account') {
+      return {
+        platform: 'instagram',
+        success: false,
+        error: 'ID da conta profissional do Instagram não encontrado. Reconecte sua conta.',
+      };
+    }
+
+    let publicVideoUrl = payload.videoUrl || '';
+    if (publicVideoUrl.startsWith('/')) {
+      publicVideoUrl = `${getBaseAppUrl()}${publicVideoUrl}`;
+    } else if (!publicVideoUrl && payload.storagePath && payload.storagePath.startsWith('/media/')) {
+      publicVideoUrl = `${getBaseAppUrl()}${payload.storagePath}`;
+    }
+
+    if (!publicVideoUrl) {
+      return {
+        platform: 'instagram',
+        success: false,
+        error: 'URL pública do vídeo é necessária para publicação de Reels via Meta Graph API.',
+      };
+    }
+
+    const caption = payload.description
+      ? `${payload.title}\n\n${payload.description}`.slice(0, 2200)
+      : payload.title.slice(0, 2200);
+
+    // Step 1: Create Reels media container
+    const containerRes = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        media_type: 'REELS',
+        video_url: publicVideoUrl,
+        caption,
+        access_token: accessToken,
+      }),
+    });
+    const containerData = await containerRes.json();
+    if (!containerRes.ok || !containerData.id) {
+      return {
+        platform: 'instagram',
+        success: false,
+        error: containerData?.error?.message || 'Erro ao criar container de Reels no Instagram Graph API.',
+      };
+    }
+
+    const creationId = containerData.id;
+
+    // Step 2: Poll container status briefly before publishing
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const statusRes = await fetch(
+        `https://graph.facebook.com/v19.0/${encodeURIComponent(creationId)}?fields=status_code&access_token=${encodeURIComponent(accessToken)}`
+      );
+      const statusData = await statusRes.json().catch(() => ({}));
+      if (statusData.status_code === 'FINISHED') break;
+      if (statusData.status_code === 'ERROR') {
+        return {
+          platform: 'instagram',
+          success: false,
+          error: 'Instagram Graph API reportou erro ao processar o arquivo de vídeo.',
+        };
+      }
+    }
+
+    // Step 3: Publish container
+    const publishRes = await fetch(
+      `https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media_publish`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          creation_id: creationId,
+          access_token: accessToken,
+        }),
+      }
+    );
+    const publishData = await publishRes.json();
+    if (!publishRes.ok || !publishData.id) {
+      return {
+        platform: 'instagram',
+        success: false,
+        error: publishData?.error?.message || 'Erro ao finalizar publicação no Instagram.',
+      };
+    }
+
+    return {
+      platform: 'instagram',
+      success: true,
+      postId: publishData.id,
+      publishedAt: new Date().toISOString(),
+    };
+  } catch (err: any) {
+    return {
+      platform: 'instagram',
+      success: false,
+      error: err?.message || 'Erro de comunicação com a Instagram Graph API.',
+    };
+  }
+}
+
+async function publishVideoToLinkedIn(
+  userId: string,
+  payload: { title: string; description: string; videoUrl?: string; storagePath?: string }
+): Promise<{ platform: 'linkedin'; success: boolean; postId?: string; error?: string; publishedAt?: string }> {
+  const conn = userSocialConnections.get(`${userId}:linkedin`);
+  if (!conn || !conn.connected || !conn.tokens?.accessToken) {
+    return {
+      platform: 'linkedin',
+      success: false,
+      error: 'Conta LinkedIn não conectada via OAuth. Conecte em "Contas conectadas".',
+    };
+  }
+
+  try {
+    const accessToken = conn.tokens.accessToken;
+    const memberId = conn.account?.id;
+    if (!memberId || memberId === 'li_member') {
+      return {
+        platform: 'linkedin',
+        success: false,
+        error: 'ID de membro LinkedIn ausente. Reconecte sua conta LinkedIn.',
+      };
+    }
+
+    const authorUrn = `urn:li:person:${memberId}`;
+    const media = await loadVideoBinary(payload.videoUrl, payload.storagePath);
+    if (!media) {
+      return {
+        platform: 'linkedin',
+        success: false,
+        error: 'Arquivo de vídeo não localizado para envio à API do LinkedIn.',
+      };
+    }
+
+    // Step 1: Initialize video upload on LinkedIn REST API
+    const initRes = await fetch('https://api.linkedin.com/rest/videos?action=initializeUpload', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'LinkedIn-Version': '202401',
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+      body: JSON.stringify({
+        initializeUploadRequest: {
+          owner: authorUrn,
+          fileSizeBytes: media.buffer.length,
+          uploadCaptions: false,
+          uploadThumbnail: false,
+        },
+      }),
+    });
+
+    const initData = await initRes.json().catch(() => ({}));
+    const uploadUrl = initData?.value?.uploadInstructions?.[0]?.uploadUrl;
+    const videoUrn = initData?.value?.video;
+
+    if (!initRes.ok || !uploadUrl || !videoUrn) {
+      return {
+        platform: 'linkedin',
+        success: false,
+        error: initData?.message || 'Erro ao inicializar upload de vídeo na API do LinkedIn.',
+      };
+    }
+
+    // Step 2: Upload binary chunk
+    const putRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: new Uint8Array(media.buffer),
+    });
+    const etag = putRes.headers.get('etag');
+    if (!putRes.ok) {
+      return {
+        platform: 'linkedin',
+        success: false,
+        error: `Falha ao enviar vídeo ao LinkedIn (HTTP ${putRes.status}).`,
+      };
+    }
+
+    // Step 3: Finalize upload
+    await fetch('https://api.linkedin.com/rest/videos?action=finalizeUpload', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'LinkedIn-Version': '202401',
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+      body: JSON.stringify({
+        finalizeUploadRequest: {
+          video: videoUrn,
+          uploadToken: '',
+          uploadedPartIds: etag ? [etag.replace(/"/g, '')] : [],
+        },
+      }),
+    });
+
+    // Step 4: Create LinkedIn Post referencing video URN
+    const postRes = await fetch('https://api.linkedin.com/rest/posts', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'LinkedIn-Version': '202401',
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+      body: JSON.stringify({
+        author: authorUrn,
+        commentary: payload.description ? `${payload.title}\n\n${payload.description}` : payload.title,
+        visibility: 'PUBLIC',
+        distribution: {
+          feedDistribution: 'MAIN_FEED',
+          targetEntities: [],
+          thirdPartyDistributionChannels: [],
+        },
+        content: {
+          media: {
+            title: payload.title,
+            id: videoUrn,
+          },
+        },
+        lifecycleState: 'PUBLISHED',
+        isReshareDisabledByAuthor: false,
+      }),
+    });
+
+    if (!postRes.ok) {
+      const postErr = await postRes.json().catch(() => ({}));
+      return {
+        platform: 'linkedin',
+        success: false,
+        error: postErr?.message || `Erro ao publicar post no LinkedIn (HTTP ${postRes.status}).`,
+      };
+    }
+
+    return {
+      platform: 'linkedin',
+      success: true,
+      postId: postRes.headers.get('x-restli-id') || videoUrn,
+      publishedAt: new Date().toISOString(),
+    };
+  } catch (err: any) {
+    return {
+      platform: 'linkedin',
+      success: false,
+      error: err?.message || 'Erro de comunicação com a API do LinkedIn.',
+    };
+  }
+}
+
+async function executeMultiPlatformPublish(params: {
+  publicationId?: string;
+  userId: string;
+  title: string;
+  description: string;
+  videoUrl?: string;
+  storagePath?: string;
+  platforms: Array<'tiktok' | 'instagram' | 'youtube' | 'linkedin'>;
+  hashtags?: string[];
+  notifyOnSuccess?: boolean;
+  notifyOnFailure?: boolean;
+}): Promise<{
+  success: boolean;
+  status: 'publicado' | 'falhou';
+  platformResults: NonNullable<PublishNotificationRecord['platformResults']>;
+  error?: string;
+  pushSent: boolean;
+  publishedAt?: string;
+}> {
+  const targetPlatforms = Array.isArray(params.platforms) && params.platforms.length > 0
+    ? params.platforms
+    : (['tiktok'] as Array<'tiktok' | 'instagram' | 'youtube' | 'linkedin'>);
+
+  const platformResults = await Promise.all(
+    targetPlatforms.map(async (platform) => {
+      if (platform === 'tiktok') {
+        return publishVideoToTikTok(params.userId, params);
+      }
+      if (platform === 'youtube') {
+        return publishVideoToYouTube(params.userId, params);
+      }
+      if (platform === 'instagram') {
+        return publishVideoToInstagram(params.userId, params);
+      }
+      return publishVideoToLinkedIn(params.userId, params);
+    })
+  );
+
+  const succeeded = platformResults.filter((r) => r.success);
+  const failed = platformResults.filter((r) => !r.success);
+  const allSucceeded = succeeded.length > 0;
+  const publishedAt = allSucceeded ? new Date().toISOString() : undefined;
+
+  let pushSent = false;
+
+  if (allSucceeded && params.notifyOnSuccess !== false) {
+    const names = succeeded.map((r) => formatPlatformDisplayName(r.platform)).join(', ');
+    const notifResult = await sendPublishNotification(params.userId, {
+      type: 'publish_success',
+      title: `Publicado com sucesso em ${names}`,
+      body: `"${params.title}" foi publicado no seu canal (${names}).`,
+      publicationId: params.publicationId,
+      platforms: succeeded.map((r) => r.platform),
+      platformResults,
+    });
+    pushSent = notifResult.deliveredCount > 0;
+  } else if (!allSucceeded && params.notifyOnFailure !== false) {
+    const names = failed.map((r) => formatPlatformDisplayName(r.platform)).join(', ');
+    const firstErr = failed[0]?.error || 'Erro ao publicar nas redes selecionadas.';
+    await sendPublishNotification(params.userId, {
+      type: 'publish_failure',
+      title: `Falha ao publicar em ${names}`,
+      body: `"${params.title}": ${firstErr}`,
+      publicationId: params.publicationId,
+      platforms: failed.map((r) => r.platform),
+      platformResults,
     });
   }
+
+  return {
+    success: allSucceeded,
+    status: allSucceeded ? 'publicado' : 'falhou',
+    platformResults,
+    error: failed.length > 0 ? failed.map((f) => `${formatPlatformDisplayName(f.platform)}: ${f.error}`).join(' | ') : undefined,
+    pushSent,
+    publishedAt,
+  };
+}
+
+// Legacy single-platform TikTok publish endpoint (updated to use real upload helper)
+app.post('/api/tiktok/publish', async (req: Request, res: Response) => {
+  const { title, description, videoUrl, storagePath, userId = 'default_user', publicationId } = req.body;
+  const result = await publishVideoToTikTok(String(userId), {
+    title: String(title || 'Vídeo Clipo'),
+    description: String(description || ''),
+    videoUrl,
+    storagePath,
+  });
+
+  if (!result.success) {
+    const isAuthErr = result.error?.includes('OAuth');
+    return res.status(isAuthErr ? 401 : 400).json({
+      success: false,
+      error: result.error,
+      requiresAuth: isAuthErr,
+    });
+  }
+
+  await sendPublishNotification(String(userId), {
+    type: 'publish_success',
+    title: 'Publicado com sucesso no TikTok',
+    body: `"${title || 'Seu vídeo'}" foi enviado via API Oficial do TikTok.`,
+    publicationId,
+    platforms: ['tiktok'],
+    platformResults: [result],
+  });
+
+  return res.json({
+    success: true,
+    publishId: result.postId,
+    message: 'Publicação concluída com sucesso na API Oficial do TikTok.',
+  });
 });
+
+// Unified Multi-Platform Publish Endpoint (TikTok, YouTube, Instagram, LinkedIn)
+app.post('/api/publish', async (req: Request, res: Response) => {
+  const {
+    publicationId,
+    userId = 'default_user',
+    title = 'Publicação Clipo',
+    description = '',
+    videoUrl,
+    storagePath,
+    platforms = ['tiktok'],
+    hashtags,
+    notifyOnSuccess = true,
+    notifyOnFailure = true,
+  } = req.body || {};
+
+  const outcome = await executeMultiPlatformPublish({
+    publicationId,
+    userId: String(userId),
+    title: String(title),
+    description: String(description),
+    videoUrl,
+    storagePath,
+    platforms,
+    hashtags,
+    notifyOnSuccess,
+    notifyOnFailure,
+  });
+
+  return res.status(outcome.success ? 200 : 400).json(outcome);
+});
+
+// Push Notifications Endpoints
+app.get('/api/push/vapid-public-key', (_req: Request, res: Response) => {
+  return res.json({ publicKey: vapidConfig.publicKey });
+});
+
+app.get('/api/push/status', (req: Request, res: Response) => {
+  const userId = String(req.query.userId || 'default_user');
+  const subs = userPushSubscriptions.get(userId) || [];
+  return res.json({
+    subscribed: subs.length > 0,
+    subscriptionCount: subs.length,
+    notifyOnSuccess: subs[0]?.notifyOnSuccess ?? true,
+    notifyOnFailure: subs[0]?.notifyOnFailure ?? true,
+  });
+});
+
+app.post('/api/push/subscribe', (req: Request, res: Response) => {
+  const {
+    userId = 'default_user',
+    subscription,
+    notifyOnSuccess = true,
+    notifyOnFailure = true,
+  } = req.body || {};
+
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+    return res.status(400).json({ success: false, error: 'Assinatura Push inválida.' });
+  }
+
+  const uid = String(userId);
+  const existing = userPushSubscriptions.get(uid) || [];
+  const now = new Date().toISOString();
+  const nextSub: StoredPushSubscription = {
+    endpoint: subscription.endpoint,
+    expirationTime: subscription.expirationTime ?? null,
+    keys: {
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+    },
+    userId: uid,
+    notifyOnSuccess: Boolean(notifyOnSuccess),
+    notifyOnFailure: Boolean(notifyOnFailure),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const filtered = existing.filter((s) => s.endpoint !== subscription.endpoint);
+  userPushSubscriptions.set(uid, [nextSub, ...filtered]);
+  savePushSubscriptionsToDisk();
+
+  return res.json({ success: true, subscriptionCount: filtered.length + 1 });
+});
+
+app.post('/api/push/unsubscribe', (req: Request, res: Response) => {
+  const { userId = 'default_user', endpoint } = req.body || {};
+  const uid = String(userId);
+  const existing = userPushSubscriptions.get(uid) || [];
+  const next = endpoint ? existing.filter((s) => s.endpoint !== endpoint) : [];
+  userPushSubscriptions.set(uid, next);
+  savePushSubscriptionsToDisk();
+  return res.json({ success: true, subscriptionCount: next.length });
+});
+
+app.post('/api/push/preferences', (req: Request, res: Response) => {
+  const { userId = 'default_user', notifyOnSuccess = true, notifyOnFailure = true } = req.body || {};
+  const uid = String(userId);
+  const existing = userPushSubscriptions.get(uid) || [];
+  const updated = existing.map((s) => ({
+    ...s,
+    notifyOnSuccess: Boolean(notifyOnSuccess),
+    notifyOnFailure: Boolean(notifyOnFailure),
+    updatedAt: new Date().toISOString(),
+  }));
+  userPushSubscriptions.set(uid, updated);
+  savePushSubscriptionsToDisk();
+  return res.json({ success: true });
+});
+
+app.post('/api/push/test', async (req: Request, res: Response) => {
+  const { userId = 'default_user' } = req.body || {};
+  const uid = String(userId);
+  const result = await sendPublishNotification(uid, {
+    type: 'push_test',
+    title: 'Clipo — Notificação Push Ativa',
+    body: 'Você receberá alertas automáticos assim que um agendamento for publicado nas redes conectadas.',
+    platforms: ['tiktok', 'instagram', 'youtube'],
+  });
+
+  return res.json({
+    success: true,
+    deliveredCount: result.deliveredCount,
+    message:
+      result.deliveredCount > 0
+        ? 'Notificação Push enviada ao navegador com sucesso!'
+        : 'Evento enviado em tempo real para a sessão ativa (ative a permissão do navegador para Push em segundo plano).',
+  });
+});
+
+app.get('/api/notifications/history', (req: Request, res: Response) => {
+  const userId = String(req.query.userId || 'default_user');
+  return res.json({
+    notifications: userNotificationsLog.get(userId) || [],
+  });
+});
+
+app.get('/api/notifications/stream', (req: Request, res: Response) => {
+  const userId = String(req.query.userId || 'default_user');
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  let set = sseClientsByUser.get(userId);
+  if (!set) {
+    set = new Set<Response>();
+    sseClientsByUser.set(userId, set);
+  }
+  set.add(res);
+
+  res.write(`event: connected\ndata: ${JSON.stringify({ ok: true, userId })}\n\n`);
+
+  const keepAlive = setInterval(() => {
+    try {
+      res.write(`: ping\n\n`);
+    } catch {
+      clearInterval(keepAlive);
+    }
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    set?.delete(res);
+  });
+});
+
+// Scheduled Jobs Sync & Background Automated Dispatcher
+app.get('/api/schedules', (req: Request, res: Response) => {
+  const userId = String(req.query.userId || 'default_user');
+  return res.json({
+    publications: userScheduledJobs.get(userId) || [],
+  });
+});
+
+app.post('/api/schedules/sync', (req: Request, res: Response) => {
+  const { userId = 'default_user', publications = [] } = req.body || {};
+  const uid = String(userId);
+  const existing = userScheduledJobs.get(uid) || [];
+  const existingById = new Map(existing.map((j) => [j.id, j]));
+
+  const incoming: ServerScheduledPublication[] = Array.isArray(publications)
+    ? publications.map((pub: any) => {
+        const prev = existingById.get(pub.id);
+        // Keep backend-finished states if server already published it
+        if (prev && (prev.status === 'publicado' || prev.status === 'processando') && pub.status === 'agendado') {
+          return prev;
+        }
+        return {
+          ...pub,
+          userId: uid,
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    : [];
+
+  userScheduledJobs.set(uid, incoming);
+  saveScheduledJobsToDisk();
+  return res.json({ success: true, publications: incoming });
+});
+
+function parseScheduledDateTime(job: ServerScheduledPublication): number | null {
+  if (!job.dateISO || !job.scheduledTime) return null;
+  const isoCandidate = `${job.dateISO}T${job.scheduledTime}:00`;
+  const ts = Date.parse(isoCandidate);
+  return isNaN(ts) ? null : ts;
+}
+
+let isSchedulerRunning = false;
+setInterval(async () => {
+  if (isSchedulerRunning) return;
+  isSchedulerRunning = true;
+  try {
+    const now = Date.now();
+    for (const [uid, jobs] of userScheduledJobs.entries()) {
+      let modified = false;
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i];
+        if (job.status !== 'agendado') continue;
+        const dueAt = parseScheduledDateTime(job);
+        if (dueAt !== null && dueAt <= now) {
+          job.status = 'processando';
+          job.updatedAt = new Date().toISOString();
+          modified = true;
+          saveScheduledJobsToDisk();
+          emitSseEvent(uid, 'schedule_updated', job);
+
+          const subs = userPushSubscriptions.get(uid) || [];
+          const notifyOnSuccess = subs[0]?.notifyOnSuccess ?? true;
+          const notifyOnFailure = subs[0]?.notifyOnFailure ?? true;
+
+          const result = await executeMultiPlatformPublish({
+            publicationId: job.id,
+            userId: uid,
+            title: job.title,
+            description: job.description,
+            videoUrl: job.videoUrl,
+            storagePath: job.storagePath,
+            platforms: job.platforms,
+            hashtags: job.hashtags,
+            notifyOnSuccess,
+            notifyOnFailure,
+          });
+
+          job.status = result.status;
+          job.platformResults = result.platformResults;
+          job.publishedAt = result.publishedAt;
+          job.errorMessage = result.error;
+          job.pushNotified = result.pushSent;
+          job.updatedAt = new Date().toISOString();
+          modified = true;
+          emitSseEvent(uid, 'schedule_updated', job);
+        }
+      }
+      if (modified) {
+        userScheduledJobs.set(uid, jobs);
+        saveScheduledJobsToDisk();
+      }
+    }
+  } catch (err) {
+    console.warn('[Scheduler] Erro no ciclo automático:', err);
+  } finally {
+    isSchedulerRunning = false;
+  }
+}, 20000);
 
 // ==========================================
 // 3. PAYMENT & SUBSCRIPTION WEBHOOK STRUCTURE

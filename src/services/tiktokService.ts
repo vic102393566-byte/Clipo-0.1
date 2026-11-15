@@ -58,7 +58,10 @@ export async function disconnectTikTokAccount(): Promise<boolean> {
 }
 
 // Direct Post publication service to TikTok Official API
-export async function publishToTikTokDirectPost(publication: ScheduledPublication): Promise<{
+export async function publishToTikTokDirectPost(
+  publication: ScheduledPublication,
+  userId?: string
+): Promise<{
   success: boolean;
   publishId?: string;
   error?: string;
@@ -70,8 +73,12 @@ export async function publishToTikTokDirectPost(publication: ScheduledPublicatio
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        userId: userId || publication.userId || 'default_user',
+        publicationId: publication.id,
         title: publication.title,
         description: publication.description,
+        videoUrl: publication.videoUrl,
+        storagePath: publication.storagePath,
         thumbnail: publication.thumbnail,
         duration: publication.duration,
         scheduledTime: publication.scheduledTime,
